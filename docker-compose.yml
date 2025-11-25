@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  # ------------------------------
+  # Frontend (SvelteKit SSR)
+  # ------------------------------
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend
+      - firebase-emulator
+    networks:
+      - app-network
+
+  # ------------------------------
+  # Backend (FastAPI)
+  # ------------------------------
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      POSTGRES_DB: portfolio_db
+      POSTGRES_USER: portfoliouser
+      POSTGRES_PASSWORD: portfoliopass
+      NODE_ENV: development
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-emulator:9099
+      FIRESTORE_EMULATOR_HOST: firebase-emulator:8080
+    depends_on:
+      db:
+        condition: service_healthy
+      firebase-emulator:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # ------------------------------
+  # PostgreSQL
+  # ------------------------------
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: portfolio_db
+      POSTGRES_USER: portfoliouser
+      POSTGRES_PASSWORD: portfoliopass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfoliouser -d portfolio_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # ------------------------------
+  # PgAdmin
+  # ------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - app-network
+
+  # ------------------------------
+  # Firebase Emulator
+  # ------------------------------
+  firebase-emulator:
+    build:
+      context: .
+      dockerfile: fb/Dockerfile.firebase-emulator
+    ports:
+      - "9099:9099"  # Auth
+      - "8080:8080"  # Firestore
+      - "9090:9090"  # Emulator UI
+    volumes:
+      - ./firebase-emulator-data:/root/.config/firebase
+      - ./fb/firebase.json:/app/firebase.json:ro
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9099 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ------------------------------
+# Volumes
+# ------------------------------
+volumes:
+  pgdata:
+  pgadmin-data:
+  firebase-emulator-data:
+
+# ------------------------------
+# Network
+# ------------------------------
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,27 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install build tools for npm packages
+RUN apk add --no-cache curl bash git python3 make g++
+
+# Install Firebase CLI globally
+RUN npm install -g firebase-tools@latest
+
+# Verify CLI
+RUN firebase --version
+
+# Non-root user
+RUN addgroup -S firebase && adduser -S firebase -G firebase
+USER firebase
+
+WORKDIR /app
+
+# Copy Firebase config
+COPY fb/firebase.json ./
+
+# Expose emulator ports
+EXPOSE 9099 9090 8080 5001 4000
+
+# Start emulator suite
+CMD ["firebase", "emulators:start", "--only", "auth,firestore,database,storage", "--project", "demo-svelte-app"]
