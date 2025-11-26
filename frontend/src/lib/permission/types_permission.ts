@@ -1,37 +1,44 @@
 import type { ApiUser } from '$lib/types';
 
-// Permission Structure Types
+// ==================== CORE DATABASE TYPES ====================
+
 export interface PermissionDetail {
-  id: number;
-  action: string;
+  id: string;  // ← CHANGED TO STRING
+  permission_action: string;
   display_name: string;
   description: string;
   power_level: number;
-  default_roles: string[];
+  default_roles: string[] | string;
+  icon?: string;
+  card_id?: string;    // ← CHANGED TO STRING
+  card_name?: string;
+  menu_name?: string;
+  module_name?: string;
 }
 
 export interface CardDetail {
-  id: number;
+  id: string;  // ← CHANGED TO STRING ONLY
   key: string;
   name: string;
   description: string;
   display_order: number;
-  menu_id: number;
+  menu_id: string;  // ← CHANGED TO STRING
   permissions: PermissionDetail[];
 }
 
 export interface MenuDetail {
-  id: number;
+  id: string;  // ← CHANGED TO STRING ONLY
   key: string;
   name: string;
   description: string;
   display_order: number;
-  module_id: number;
+  module_id: string;  // ← CHANGED TO STRING
+  permissions: PermissionDetail[];
   cards: CardDetail[];
 }
 
 export interface ModuleDetail {
-  id: number;
+  id: string;  // ← CHANGED TO STRING ONLY
   key: string;
   name: string;
   icon: string;
@@ -52,37 +59,106 @@ export interface PermissionStructure {
   };
 }
 
-// Selection State Types
-export interface TreeSelectionState {
-  expandedNodes: Set<number>;
-  selectedPermissions: Map<number, Set<number>>;
-  loading: boolean;
-  searchTerm: string;
+// ==================== ERROR TYPES ====================
+
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: any;
+  timestamp: string;
 }
 
-export interface PowerAnalysis {
-  permission_count: number;
-  max_power: number;
-  average_power: number;
-  power_distribution: {
-    low: number;
-    medium: number;
-    high: number;
-    critical: number;
+export interface PermissionConflict {
+  permission_id: string;  // ← CHANGED TO STRING
+  conflicting_with: string[];  // ← CHANGED TO STRING
+  severity: 'low' | 'medium' | 'high';
+  description: string;
+}
+
+// ==================== API RESPONSE WRAPPERS ====================
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data?: T;
+  error?: ApiError;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+  message: string;
+  data?: any;
+}
+
+export interface BulkOperationResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    results: Array<{
+      user_id: number;
+      success: boolean;
+      message: string;
+    }>;
+    summary?: {
+      total_roles?: number;
+      successful?: number;
+      failed?: number;
+    };
   };
-  most_powerful_permissions: PermissionDetail[];
 }
 
-// API Response Types
+// ==================== REQUEST TYPES ====================
+
+export interface PermissionValidationRequest {
+  parent_permission_ids: string[];  // ← CHANGED TO STRING
+  child_permission_ids: string[];   // ← CHANGED TO STRING
+}
+
+export interface RolePermissionsUpdateRequest {
+  permission_ids: string[];  // ← CHANGED TO STRING
+}
+
+export interface UpdateUserRoleRequest {
+  role: string;
+}
+
+export interface AssignUserToRoleRequest {
+  role: string;
+}
+
+export interface BulkRoleUpdateRequest {
+  updates: Array<{
+    user_id: number;
+    role_name: string;
+    action: 'add' | 'remove';
+  }>;
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  description: string;
+  permission_ids: string[];  // ← CHANGED TO STRING
+}
+
+export interface UserPermissionsRequest {
+  permission_ids: string[];  // ← CHANGED TO STRING
+}
+
+export interface PermissionConflictCheckRequest {
+  permission_ids: string[];  // ← CHANGED TO STRING
+}
+
+// ==================== RESPONSE TYPES ====================
+
 export interface UserPermissionsResponse {
   user_id: number;
-  permission_ids: number[];
+  permission_ids: string[];  // ← CHANGED TO STRING
 }
 
 export interface PermissionValidationResponse {
   max_parent_power: number;
   validation_results: Array<{
-    permission_id: number;
+    permission_id: string;  // ← CHANGED TO STRING
     permission_name: string;
     power_level: number;
     is_allowed: boolean;
@@ -99,17 +175,234 @@ export interface AllowedPermissionsResponse {
 export interface RoleTemplate {
   name: string;
   description: string;
-  permission_ids: number[];
+  permission_ids: string[];  // ← CHANGED TO STRING
   power_level: number;
 }
 
 export interface RolePermissionsResponse {
   role: string;
-  permission_ids: number[];
+  permission_ids: string[];  // ← CHANGED TO STRING
   permission_count: number;
 }
 
-// UI State Types
+export interface SystemRole {
+  name: string;
+  description: string;
+  users: number;
+  permissions: number;
+  power_level: number;
+  is_system_role: boolean;
+}
+
+export interface SystemRolesResponse {
+  roles: SystemRole[];
+  total_roles: number;
+}
+
+export interface QuickAction {
+  icon: string;
+  label: string;
+  href: string;
+  description: string;
+}
+
+export interface QuickActionsResponse {
+  actions: QuickAction[];
+  total_actions: number;
+}
+
+export interface AuditLog {
+  id: number;
+  timestamp: string;
+  user_id: number;
+  username: string;
+  action: string;
+  target_type: string;
+  target_id: number;
+  target_name: string;
+  details: {
+    performed_by: string;
+    performed_by_id: number;
+  };
+  ip_address: string;
+}
+
+export interface AuditLogsResponse {
+  logs: AuditLog[];
+  total_logs: number;
+  filters_applied: {
+    start_date?: string;
+    end_date?: string;
+    user_id?: number;
+    role_name?: string;
+    action_type?: string;
+  };
+}
+
+export interface HealthCheck {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  services: {
+    database: boolean;
+    cache: boolean;
+    messaging: boolean;
+  };
+  tables: {
+    [key: string]: boolean;
+  };
+  metrics: {
+    total_roles: number;
+    total_users: number;
+    total_permissions: number;
+    active_sessions: number;
+  };
+  last_updated: string;
+}
+
+export interface UserWithDetails {
+  user_id: number;
+  username: string;
+  email: string;
+  joined_date: string;
+  display_name?: string;
+  role?: string;
+}
+
+export interface UsersByRoleResponse {
+  role: string;
+  users: UserWithDetails[];
+  user_count: number;
+}
+
+export interface UserRoleAssignment {
+  user_id: number;
+  roles: string[];
+  primary_role: string;
+}
+
+export interface RoleStatistics {
+  total_users: number;
+  role_distribution: Array<{
+    role: string;
+    user_count: number;
+    percentage: number;
+  }>;
+  most_common_role: string;
+  last_updated: string;
+}
+
+// ==================== POWER ANALYSIS TYPES ====================
+
+export interface PowerAnalysis {
+  role?: string;
+  user_id?: number;
+  permission_count: number;
+  max_power: number;
+  average_power: number;
+  power_distribution: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  most_powerful_permissions: PermissionDetail[];
+  analyzed_at?: string;
+}
+
+export interface SystemPowerAnalysis {
+  overall_power_distribution: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  role_analysis: PowerAnalysis[];
+  risk_assessment: {
+    high_risk_roles: string[];
+    potential_conflicts: string[];
+    recommendations: string[];
+  };
+  system_metrics: {
+    total_roles: number;
+    total_users: number;
+    avg_account_age_days?: number;
+  };
+}
+
+// ==================== PERMISSION CONFLICT TYPES ====================
+
+export interface PermissionConflictResponse {
+  conflicts: PermissionConflict[];
+  has_conflicts: boolean;
+  recommendations: string[];
+}
+
+// ==================== BULK OPERATION TYPES ====================
+
+export interface BulkPermissionResult {
+  permission_id: string;  // ← CHANGED TO STRING
+  success: boolean;
+  message: string;
+}
+
+export interface BulkRolePermissionResult {
+  role_name: string;
+  success: boolean;
+  message: string;
+  permission_count?: number;
+}
+
+export interface BulkRoleUpdateResult {
+  user_id: number;
+  success: boolean;
+  message: string;
+}
+
+export interface BulkPermissionsResponse {
+  results: BulkPermissionResult[];
+}
+
+export interface BulkRolePermissionsResponse {
+  results: BulkRolePermissionResult[];
+  summary: {
+    total_roles: number;
+    successful: number;
+    failed: number;
+  };
+}
+
+export interface BulkUserRolesResponse {
+  updated: number;
+  failed: number;
+  results: BulkRoleUpdateResult[];
+}
+
+// ==================== USER PERMISSION DETAILS ====================
+
+export interface UserPermissionDetail {
+  permission_id: string;  // ← CHANGED TO STRING
+  display_name: string;
+  description: string;
+  permission_action: string;
+  power_level: number;
+}
+
+export interface UserPermissionsDetailsResponse {
+  user_id: number;
+  permissions: UserPermissionDetail[];
+  total_permissions: number;
+}
+
+// ==================== UI STATE TYPES ====================
+
+export interface TreeSelectionState {
+  expandedNodes: Set<string>;  // ← CHANGED TO STRING ONLY
+  selectedPermissions: Map<string, Set<string>>;  // ← CHANGED TO STRING
+  selectedModules: Set<string>;  // ← CHANGED TO STRING ONLY
+  selectedMenus: Set<string>;  // ← CHANGED TO STRING ONLY
+  loading: boolean;
+  searchTerm: string;
+}
+
 export interface PermissionAccess {
   module: string;
   menu: string;
@@ -123,7 +416,6 @@ export interface UserWithPermissions extends ApiUser {
   role_permissions: string[];
 }
 
-// Role Management Types
 export interface Role {
   name: string;
   description: string;
@@ -133,14 +425,37 @@ export interface Role {
   is_system_role: boolean;
 }
 
-export interface UserRoleAssignment {
-  user_id: number;
-  roles: string[];
-  effective_permissions: number;
-  combined_power_level: number;
+// ==================== CACHE TYPES ====================
+
+export interface PermissionCache {
+  structure: PermissionStructure | null;
+  lastUpdated: string;
+  ttl: number;
 }
 
-// Power Level Constants
+// ==================== SPECIFIC API RESPONSE TYPES ====================
+
+export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> {}
+export interface SystemRolesApiResponse extends ApiResponse<SystemRolesResponse> {}
+export interface RoleTemplatesResponse extends ApiResponse<{ [key: string]: RoleTemplate }> {}
+export interface RolePermissionsApiResponse extends ApiResponse<RolePermissionsResponse> {}
+export interface UserPermissionsApiResponse extends ApiResponse<UserPermissionsResponse> {}
+export interface UserPermissionsDetailsApiResponse extends ApiResponse<UserPermissionsDetailsResponse> {}
+export interface UserRolesApiResponse extends ApiResponse<UserRoleAssignment> {}
+export interface UsersByRoleApiResponse extends ApiResponse<UsersByRoleResponse> {}
+export interface RoleStatisticsApiResponse extends ApiResponse<RoleStatistics> {}
+export interface SystemPowerAnalysisApiResponse extends ApiResponse<SystemPowerAnalysis> {}
+export interface HealthCheckApiResponse extends ApiResponse<HealthCheck> {}
+export interface QuickActionsApiResponse extends ApiResponse<QuickActionsResponse> {}
+export interface AuditLogsApiResponse extends ApiResponse<AuditLogsResponse> {}
+export interface GrantPermissionsResponse extends ApiResponse<BulkPermissionsResponse> {}
+export interface RevokePermissionsResponse extends ApiResponse<BulkPermissionsResponse> {}
+export interface BulkRolePermissionsApiResponse extends ApiResponse<BulkRolePermissionsResponse> {}
+export interface BulkUserRolesApiResponse extends ApiResponse<BulkUserRolesResponse> {}
+export interface PermissionConflictApiResponse extends ApiResponse<PermissionConflictResponse> {}
+
+// ==================== CONSTANTS ====================
+
 export const POWER_LEVELS = {
   LOW: { max: 30, color: 'green', label: 'Low', icon: '🟢' },
   MEDIUM: { max: 60, color: 'yellow', label: 'Medium', icon: '🟡' },
@@ -149,3 +464,8 @@ export const POWER_LEVELS = {
 } as const;
 
 export type PowerLevel = keyof typeof POWER_LEVELS;
+
+// ==================== HELPER TYPES ====================
+
+export type ApiResponseData<T> = T extends ApiResponse<infer U> ? U : never;
+export type ExtractApiData<T> = T extends ApiResponse<infer U> ? U : T;

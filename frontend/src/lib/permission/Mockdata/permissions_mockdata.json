@@ -1,0 +1,768 @@
+{
+  "permissionStructure": {
+    "modules": [
+      {
+        "id": "content",
+        "key": "content",
+        "name": "Content Management",
+        "icon": "📝",
+        "color": "#3B82F6",
+        "description": "Manage articles, posts, and content across the platform",
+        "display_order": 1,
+        "menus": [
+          {
+            "id": "articles",
+            "key": "articles",
+            "name": "Articles",
+            "description": "Create and manage articles and blog posts",
+            "display_order": 1,
+            "module_id": "content",
+            "permissions": [
+              {
+                "id": "5001",
+                "permission_action": "browse",
+                "display_name": "Browse Articles",
+                "description": "View and list all articles",
+                "power_level": 10,
+                "default_roles": ["basic", "creator", "moderator", "admin"],
+                "icon": "👁️",
+                "card_id": null,
+                "card_name": null,
+                "menu_name": "Articles",
+                "module_name": "Content Management"
+              }
+            ],
+            "cards": [
+              {
+                "id": "article_management",
+                "key": "article_management",
+                "name": "Article Management",
+                "description": "Full article creation and editing capabilities",
+                "display_order": 1,
+                "menu_id": "articles",
+                "permissions": [
+                  {
+                    "id": "5002",
+                    "permission_action": "create",
+                    "display_name": "Create Articles",
+                    "description": "Create new articles and blog posts",
+                    "power_level": 30,
+                    "default_roles": ["creator", "moderator", "admin"],
+                    "icon": "➕",
+                    "card_id": "article_management",
+                    "card_name": "Article Management",
+                    "menu_name": "Articles",
+                    "module_name": "Content Management"
+                  },
+                  {
+                    "id": "5003",
+                    "permission_action": "edit",
+                    "display_name": "Edit Articles",
+                    "description": "Modify existing articles and content",
+                    "power_level": 40,
+                    "default_roles": ["creator", "moderator", "admin"],
+                    "icon": "✏️",
+                    "card_id": "article_management",
+                    "card_name": "Article Management",
+                    "menu_name": "Articles",
+                    "module_name": "Content Management"
+                  },
+                  {
+                    "id": "5004",
+                    "permission_action": "delete",
+                    "display_name": "Delete Articles",
+                    "description": "Remove articles and blog posts",
+                    "power_level": 60,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "🗑️",
+                    "card_id": "article_management",
+                    "card_name": "Article Management",
+                    "menu_name": "Articles",
+                    "module_name": "Content Management"
+                  }
+                ]
+              },
+              {
+                "id": "article_moderation",
+                "key": "article_moderation",
+                "name": "Article Moderation",
+                "description": "Advanced article moderation tools",
+                "display_order": 2,
+                "menu_id": "articles",
+                "permissions": [
+                  {
+                    "id": "5005",
+                    "permission_action": "approve",
+                    "display_name": "Approve Articles",
+                    "description": "Approve articles for publication",
+                    "power_level": 50,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "✅",
+                    "card_id": "article_moderation",
+                    "card_name": "Article Moderation",
+                    "menu_name": "Articles",
+                    "module_name": "Content Management"
+                  },
+                  {
+                    "id": "5006",
+                    "permission_action": "reject",
+                    "display_name": "Reject Articles",
+                    "description": "Reject articles from publication",
+                    "power_level": 55,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "❌",
+                    "card_id": "article_moderation",
+                    "card_name": "Article Moderation",
+                    "menu_name": "Articles",
+                    "module_name": "Content Management"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "media",
+            "key": "media",
+            "name": "Media Library",
+            "description": "Manage images, videos, and media files",
+            "display_order": 2,
+            "module_id": "content",
+            "permissions": [],
+            "cards": [
+              {
+                "id": "media_upload",
+                "key": "media_upload",
+                "name": "Media Upload",
+                "description": "Upload and manage media files",
+                "display_order": 1,
+                "menu_id": "media",
+                "permissions": [
+                  {
+                    "id": "5007",
+                    "permission_action": "upload",
+                    "display_name": "Upload Media",
+                    "description": "Upload new media files to the library",
+                    "power_level": 25,
+                    "default_roles": ["creator", "moderator", "admin"],
+                    "icon": "📤",
+                    "card_id": "media_upload",
+                    "card_name": "Media Upload",
+                    "menu_name": "Media Library",
+                    "module_name": "Content Management"
+                  },
+                  {
+                    "id": "5008",
+                    "permission_action": "manage",
+                    "display_name": "Manage Media",
+                    "description": "Organize and manage media library",
+                    "power_level": 45,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "🖼️",
+                    "card_id": "media_upload",
+                    "card_name": "Media Upload",
+                    "menu_name": "Media Library",
+                    "module_name": "Content Management"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "user_management",
+        "key": "user_management",
+        "name": "User Management",
+        "icon": "👥",
+        "color": "#10B981",
+        "description": "Manage users, roles, and permissions",
+        "display_order": 2,
+        "menus": [
+          {
+            "id": "users",
+            "key": "users",
+            "name": "Users",
+            "description": "Manage user accounts and profiles",
+            "display_order": 1,
+            "module_id": "user_management",
+            "permissions": [],
+            "cards": [
+              {
+                "id": "user_profiles",
+                "key": "user_profiles",
+                "name": "User Profiles",
+                "description": "View and manage user profiles",
+                "display_order": 1,
+                "menu_id": "users",
+                "permissions": [
+                  {
+                    "id": "6001",
+                    "permission_action": "view",
+                    "display_name": "View Profiles",
+                    "description": "View user profiles and information",
+                    "power_level": 15,
+                    "default_roles": ["basic", "creator", "moderator", "admin"],
+                    "icon": "👤",
+                    "card_id": "user_profiles",
+                    "card_name": "User Profiles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "6002",
+                    "permission_action": "edit",
+                    "display_name": "Edit Profiles",
+                    "description": "Modify user profile information",
+                    "power_level": 50,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "✏️",
+                    "card_id": "user_profiles",
+                    "card_name": "User Profiles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "6003",
+                    "permission_action": "delete",
+                    "display_name": "Delete Users",
+                    "description": "Remove user accounts from system",
+                    "power_level": 90,
+                    "default_roles": ["admin"],
+                    "icon": "🗑️",
+                    "card_id": "user_profiles",
+                    "card_name": "User Profiles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  }
+                ]
+              },
+              {
+                "id": "user_roles",
+                "key": "user_roles",
+                "name": "User Roles",
+                "description": "Manage user roles and permissions",
+                "display_order": 2,
+                "menu_id": "users",
+                "permissions": [
+                  {
+                    "id": "6004",
+                    "permission_action": "assign",
+                    "display_name": "Assign Roles",
+                    "description": "Assign roles to users",
+                    "power_level": 70,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "🔧",
+                    "card_id": "user_roles",
+                    "card_name": "User Roles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "6005",
+                    "permission_action": "manage",
+                    "display_name": "Manage Roles",
+                    "description": "Create and manage role definitions",
+                    "power_level": 95,
+                    "default_roles": ["admin"],
+                    "icon": "⚙️",
+                    "card_id": "user_roles",
+                    "card_name": "User Roles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "system",
+        "key": "system",
+        "name": "System Administration",
+        "icon": "⚙️",
+        "color": "#EF4444",
+        "description": "System configuration and administration",
+        "display_order": 3,
+        "menus": [
+          {
+            "id": "settings",
+            "key": "settings",
+            "name": "System Settings",
+            "description": "Configure system-wide settings",
+            "display_order": 1,
+            "module_id": "system",
+            "permissions": [],
+            "cards": [
+              {
+                "id": "system_config",
+                "key": "system_config",
+                "name": "System Configuration",
+                "description": "Manage system configuration",
+                "display_order": 1,
+                "menu_id": "settings",
+                "permissions": [
+                  {
+                    "id": "7001",
+                    "permission_action": "view",
+                    "display_name": "View Settings",
+                    "description": "View system configuration settings",
+                    "power_level": 20,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "👁️",
+                    "card_id": "system_config",
+                    "card_name": "System Configuration",
+                    "menu_name": "System Settings",
+                    "module_name": "System Administration"
+                  },
+                  {
+                    "id": "7002",
+                    "permission_action": "modify",
+                    "display_name": "Modify Settings",
+                    "description": "Change system configuration settings",
+                    "power_level": 100,
+                    "default_roles": ["admin"],
+                    "icon": "🔧",
+                    "card_id": "system_config",
+                    "card_name": "System Configuration",
+                    "menu_name": "System Settings",
+                    "module_name": "System Administration"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "analytics",
+        "key": "analytics",
+        "name": "Analytics & Reports",
+        "icon": "📊",
+        "color": "#8B5CF6",
+        "description": "Access analytics and reporting tools",
+        "display_order": 4,
+        "menus": [
+          {
+            "id": "reports",
+            "key": "reports",
+            "name": "Reports",
+            "description": "Generate and view system reports",
+            "display_order": 1,
+            "module_id": "analytics",
+            "permissions": [],
+            "cards": [
+              {
+                "id": "analytics_dashboard",
+                "key": "analytics_dashboard",
+                "name": "Analytics Dashboard",
+                "description": "Access analytics and insights",
+                "display_order": 1,
+                "menu_id": "reports",
+                "permissions": [
+                  {
+                    "id": "8001",
+                    "permission_action": "view",
+                    "display_name": "View Analytics",
+                    "description": "Access analytics dashboard and reports",
+                    "power_level": 25,
+                    "default_roles": ["basic", "creator", "moderator", "admin"],
+                    "icon": "📈",
+                    "card_id": "analytics_dashboard",
+                    "card_name": "Analytics Dashboard",
+                    "menu_name": "Reports",
+                    "module_name": "Analytics & Reports"
+                  },
+                  {
+                    "id": "8002",
+                    "permission_action": "export",
+                    "display_name": "Export Reports",
+                    "description": "Export analytics data and reports",
+                    "power_level": 40,
+                    "default_roles": ["creator", "moderator", "admin"],
+                    "icon": "📤",
+                    "card_id": "analytics_dashboard",
+                    "card_name": "Analytics Dashboard",
+                    "menu_name": "Reports",
+                    "module_name": "Analytics & Reports"
+                  }
+                ]
+              },
+              {
+                "id": "advanced_analytics",
+                "key": "advanced_analytics",
+                "name": "Advanced Analytics",
+                "description": "Advanced analytics and data insights",
+                "display_order": 2,
+                "menu_id": "reports",
+                "permissions": [
+                  {
+                    "id": "8003",
+                    "permission_action": "analyze",
+                    "display_name": "Advanced Analysis",
+                    "description": "Perform advanced data analysis",
+                    "power_level": 60,
+                    "default_roles": ["moderator", "admin"],
+                    "icon": "🔍",
+                    "card_id": "advanced_analytics",
+                    "card_name": "Advanced Analytics",
+                    "menu_name": "Reports",
+                    "module_name": "Analytics & Reports"
+                  },
+                  {
+                    "id": "8004",
+                    "permission_action": "configure",
+                    "display_name": "Configure Analytics",
+                    "description": "Configure analytics settings and dashboards",
+                    "power_level": 75,
+                    "default_roles": ["admin"],
+                    "icon": "⚙️",
+                    "card_id": "advanced_analytics",
+                    "card_name": "Advanced Analytics",
+                    "menu_name": "Reports",
+                    "module_name": "Analytics & Reports"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "total_modules": 4,
+      "total_menus": 6,
+      "total_cards": 9,
+      "total_permissions": 22,
+      "last_updated": "2024-01-15T10:30:00Z"
+    }
+  },
+  "userPermissions": {
+    "1": {
+      "user_id": 1,
+      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"]
+    },
+    "2": {
+      "user_id": 2,
+      "permission_ids": ["5001", "5002", "5003", "5007", "6001", "8001", "8002"]
+    },
+    "3": {
+      "user_id": 3,
+      "permission_ids": ["5001", "6001", "8001"]
+    }
+  },
+  "rolePermissions": {
+    "basic": {
+      "role": "basic",
+      "permission_ids": ["5001", "6001", "8001"],
+      "permission_count": 3
+    },
+    "creator": {
+      "role": "creator",
+      "permission_ids": ["5001", "5002", "5003", "5007", "6001", "8001", "8002"],
+      "permission_count": 7
+    },
+    "moderator": {
+      "role": "moderator",
+      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
+      "permission_count": 15
+    },
+    "admin": {
+      "role": "admin",
+      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
+      "permission_count": 19
+    }
+  },
+  "systemRoles": [
+    {
+      "name": "basic",
+      "description": "Basic user with view-only access to essential features",
+      "users": 45,
+      "permissions": 3,
+      "power_level": 10,
+      "is_system_role": true
+    },
+    {
+      "name": "creator",
+      "description": "Content creator with article creation and editing capabilities",
+      "users": 23,
+      "permissions": 7,
+      "power_level": 30,
+      "is_system_role": true
+    },
+    {
+      "name": "moderator",
+      "description": "Content moderator with management and approval tools",
+      "users": 8,
+      "permissions": 15,
+      "power_level": 70,
+      "is_system_role": true
+    },
+    {
+      "name": "admin",
+      "description": "Full system administrator with all permissions",
+      "users": 3,
+      "permissions": 19,
+      "power_level": 100,
+      "is_system_role": true
+    }
+  ],
+  "roleTemplates": {
+    "basic": {
+      "name": "Basic",
+      "description": "Basic user template with view-only permissions",
+      "permission_ids": ["5001", "6001", "8001"],
+      "power_level": 10
+    },
+    "content_creator": {
+      "name": "Content Creator",
+      "description": "Template for content creation roles",
+      "permission_ids": ["5001", "5002", "5003", "5007", "8001", "8002"],
+      "power_level": 30
+    },
+    "moderator": {
+      "name": "Moderator",
+      "description": "Template for content moderation roles",
+      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
+      "power_level": 70
+    },
+    "administrator": {
+      "name": "Administrator",
+      "description": "Full system administrator template",
+      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
+      "power_level": 100
+    }
+  },
+  "userRoles": {
+    "1": {
+      "user_id": 1,
+      "roles": ["admin"],
+      "primary_role": "admin"
+    },
+    "2": {
+      "user_id": 2,
+      "roles": ["creator"],
+      "primary_role": "creator"
+    },
+    "3": {
+      "user_id": 3,
+      "roles": ["basic"],
+      "primary_role": "basic"
+    }
+  },
+  "usersByRole": {
+    "basic": [
+      {
+        "user_id": 3,
+        "username": "john_doe",
+        "email": "john@example.com",
+        "joined_date": "2024-01-10",
+        "display_name": "John Doe",
+        "role": "basic"
+      },
+      {
+        "user_id": 4,
+        "username": "jane_smith",
+        "email": "jane@example.com",
+        "joined_date": "2024-01-12",
+        "display_name": "Jane Smith",
+        "role": "basic"
+      }
+    ],
+    "creator": [
+      {
+        "user_id": 2,
+        "username": "content_creator",
+        "email": "creator@example.com",
+        "joined_date": "2024-01-05",
+        "display_name": "Content Creator",
+        "role": "creator"
+      }
+    ],
+    "admin": [
+      {
+        "user_id": 1,
+        "username": "admin_user",
+        "email": "admin@example.com",
+        "joined_date": "2024-01-01",
+        "display_name": "System Admin",
+        "role": "admin"
+      }
+    ]
+  },
+  "roleStats": {
+    "total_users": 156,
+    "role_distribution": [
+      {
+        "role": "basic",
+        "user_count": 120,
+        "percentage": 76.92
+      },
+      {
+        "role": "creator",
+        "user_count": 25,
+        "percentage": 16.03
+      },
+      {
+        "role": "moderator",
+        "user_count": 8,
+        "percentage": 5.13
+      },
+      {
+        "role": "admin",
+        "user_count": 3,
+        "percentage": 1.92
+      }
+    ],
+    "most_common_role": "basic",
+    "last_updated": "2024-01-15T10:30:00Z"
+  },
+  "quickActions": [
+    {
+      "icon": "👑",
+      "label": "Create Role",
+      "href": "/permission/roles/new",
+      "description": "Create a new custom role"
+    },
+    {
+      "icon": "👥",
+      "label": "Manage Users",
+      "href": "/permission/users",
+      "description": "Manage user roles and permissions"
+    },
+    {
+      "icon": "📊",
+      "label": "View Analytics",
+      "href": "/permission/analytics",
+      "description": "View permission usage analytics"
+    },
+    {
+      "icon": "🔍",
+      "label": "Audit Logs",
+      "href": "/permission/audit",
+      "description": "Review permission change history"
+    }
+  ],
+  "systemPowerAnalysis": {
+    "overall_power_distribution": {
+      "low": 8,
+      "medium": 7,
+      "high": 4,
+      "critical": 3
+    },
+    "role_analysis": [
+      {
+        "role": "basic",
+        "permission_count": 3,
+        "max_power": 25,
+        "average_power": 16.7,
+        "power_distribution": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "critical": 0
+        },
+        "most_powerful_permissions": [
+          {
+            "id": "8001",
+            "permission_action": "view",
+            "display_name": "View Analytics",
+            "description": "Access analytics dashboard and reports",
+            "power_level": 25,
+            "default_roles": ["basic", "creator", "moderator", "admin"],
+            "icon": "📈"
+          }
+        ]
+      },
+      {
+        "role": "creator",
+        "permission_count": 7,
+        "max_power": 40,
+        "average_power": 28.6,
+        "power_distribution": {
+          "low": 4,
+          "medium": 3,
+          "high": 0,
+          "critical": 0
+        },
+        "most_powerful_permissions": [
+          {
+            "id": "5003",
+            "permission_action": "edit",
+            "display_name": "Edit Articles",
+            "description": "Modify existing articles and content",
+            "power_level": 40,
+            "default_roles": ["creator", "moderator", "admin"],
+            "icon": "✏️"
+          }
+        ]
+      }
+    ],
+    "risk_assessment": {
+      "high_risk_roles": ["admin"],
+      "potential_conflicts": ["6003-delete_users", "7002-modify_settings"],
+      "recommendations": [
+        "Implement two-factor authentication for admin roles",
+        "Regular audit of high-power permissions",
+        "Consider role-based access control reviews"
+      ]
+    },
+    "system_metrics": {
+      "total_roles": 4,
+      "total_users": 156,
+      "avg_account_age_days": 45
+    }
+  },
+  "auditLogs": [
+    {
+      "id": 1,
+      "timestamp": "2024-01-15T10:25:00Z",
+      "user_id": 1,
+      "username": "admin_user",
+      "action": "ROLE_PERMISSIONS_UPDATED",
+      "target_type": "role",
+      "target_id": 2,
+      "target_name": "creator",
+      "details": {
+        "performed_by": "System Admin",
+        "performed_by_id": 1
+      },
+      "ip_address": "192.168.1.100"
+    },
+    {
+      "id": 2,
+      "timestamp": "2024-01-15T09:30:00Z",
+      "user_id": 1,
+      "username": "admin_user",
+      "action": "USER_ROLE_ASSIGNED",
+      "target_type": "user",
+      "target_id": 3,
+      "target_name": "john_doe",
+      "details": {
+        "performed_by": "System Admin",
+        "performed_by_id": 1
+      },
+      "ip_address": "192.168.1.100"
+    }
+  ],
+  "healthCheck": {
+    "status": "healthy",
+    "services": {
+      "database": true,
+      "cache": true,
+      "messaging": true
+    },
+    "tables": {
+      "roles": true,
+      "permissions": true,
+      "user_roles": true
+    },
+    "metrics": {
+      "total_roles": 4,
+      "total_users": 156,
+      "total_permissions": 22,
+      "active_sessions": 23
+    },
+    "last_updated": "2024-01-15T10:30:00Z"
+  }
+}

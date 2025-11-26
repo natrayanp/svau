@@ -25,6 +25,7 @@ export class BaseApi {
   }
 
   protected async mockRequest<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    console.log('endpoint mockrequest: ',endpoint);
     const resp = this.mockResponses[endpoint];
     if (!resp) throw new Error(`No mock response defined for ${endpoint}`);
     // Simulate async API
@@ -32,6 +33,10 @@ export class BaseApi {
   }
 
   async request<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    console.log('usemock : ',this.useMock);
+    console.log('endpoint : ',endpoint);
+    console.log('options : ',options);
+    
     if (this.useMock) return this.mockRequest<T>(endpoint, options);
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {

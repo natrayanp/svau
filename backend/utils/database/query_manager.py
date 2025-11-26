@@ -82,8 +82,8 @@ query_manager = QueryManager()
 def get_query(category: str, query_name: str) -> str:
     return query_manager.get_query(category, query_name)
 
-def auth_query(query_name: str) -> str:
-    return get_query("auth", query_name)
+def permission_query(query_name: str) -> str:
+    return get_query("permission", query_name)
 
 def flashcard_query(query_name: str) -> str:
     return get_query("flashcard", query_name)

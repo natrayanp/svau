@@ -9,23 +9,33 @@ class UserRole(str, Enum):
     MODERATOR = "moderator"
     ADMIN = "admin"
 
-# POWER-BASED MODELS
-class UserPermissionsRequest(BaseModel):
-    permission_ids: List[int]
+# REQUEST MODELS - Accept string IDs from frontend, convert to int
+class RolePermissionsUpdateRequest(BaseModel):
+    permission_ids: List[str]  # String IDs from frontend
 
     @validator('permission_ids', each_item=True)
     def validate_permission_id(cls, v):
-        if not isinstance(v, int) or v <= 0:
-            raise ValueError('Permission ID must be a positive integer')
+        if not isinstance(v, str) or not v.isdigit():
+            raise ValueError('Permission ID must be a numeric string')
         return v
 
-class UserPermissionsResponse(BaseModel):
-    user_id: int
-    permission_ids: List[int]
+class UserPermissionsRequest(BaseModel):
+    permission_ids: List[str]  # String IDs from frontend
+
+    @validator('permission_ids', each_item=True)
+    def validate_permission_id(cls, v):
+        if not isinstance(v, str) or not v.isdigit():
+            raise ValueError('Permission ID must be a numeric string')
+        return v
 
 class PermissionValidationRequest(BaseModel):
-    parent_permission_ids: List[int]
-    child_permission_ids: List[int]
+    parent_permission_ids: List[str]  # String IDs from frontend
+    child_permission_ids: List[str]   # String IDs from frontend
+
+# RESPONSE MODELS - Convert int IDs to string for frontend
+class UserPermissionsResponse(BaseModel):
+    user_id: int     # Keep user_id as int internally
+    permission_ids: List[str]  # String IDs for frontend
 
 class PermissionValidationResponse(BaseModel):
     max_parent_power: int
@@ -47,43 +57,48 @@ class PowerAnalysisResponse(BaseModel):
 class RoleTemplate(BaseModel):
     name: str
     description: str
-    permission_ids: List[int]
+    permission_ids: List[str]  # String IDs for frontend
     power_level: int
 
 class RolePermissionsResponse(BaseModel):
     role: str
-    permission_ids: List[int]
+    permission_ids: List[str]  # String IDs for frontend
     permission_count: int
 
-# PERMISSION STRUCTURE MODELS
+# PERMISSION STRUCTURE MODELS - Convert int IDs to string for frontend
 class PermissionDetail(BaseModel):
-    id: int
+    id: str          # String ID for frontend
     action: str
     display_name: str
     description: str
     power_level: int
     default_roles: List[str]
+    card_id: Optional[str] = None      # String ID for frontend
+    card_name: Optional[str] = None
+    menu_name: Optional[str] = None
+    module_name: Optional[str] = None
 
 class CardDetail(BaseModel):
-    id: int
+    id: str          # String ID for frontend
     key: str
     name: str
     description: str
     display_order: int
-    menu_id: int
+    menu_id: str     # String ID for frontend
     permissions: List[PermissionDetail]
 
 class MenuDetail(BaseModel):
-    id: int
+    id: str          # String ID for frontend
     key: str
     name: str
     description: str
     display_order: int
-    module_id: int
+    module_id: str   # String ID for frontend
+    permissions: List[PermissionDetail]  # Direct menu permissions
     cards: List[CardDetail]
 
 class ModuleDetail(BaseModel):
-    id: int
+    id: str          # String ID for frontend
     key: str
     name: str
     icon: str
@@ -107,7 +122,7 @@ class PermissionStructureAPIResponse(BaseModel):
     success: bool
     data: PermissionStructureResponse
 
-# EXISTING USER MODELS (unchanged)
+# EXISTING USER MODELS (unchanged - internal IDs remain int)
 class UserBase(BaseModel):
     email: EmailStr
     display_name: Optional[str] = None
@@ -123,7 +138,7 @@ class UserUpdate(BaseModel):
     email_verified: Optional[bool] = None
 
 class UserResponse(UserBase):
-    id: int
+    id: int          # Internal ID remains int
     uid: str
     email_verified: bool
     created_at: datetime
@@ -149,9 +164,9 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = None
 
 class PermissionAuditResponse(BaseModel):
-    id: int
-    user_id: int
-    permission_id: int
+    id: int          # Internal ID remains int
+    user_id: int     # Internal ID remains int
+    permission_id: int  # Internal ID remains int
     action: str
     performed_by: int
     performed_at: datetime
