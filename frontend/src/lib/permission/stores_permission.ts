@@ -17,22 +17,31 @@ import type {
   RoleStatistics,
   UserPermissionsDetailsResponse,
   PermissionConflictResponse,
-  ApiError
+  ApiError,
+  User
 } from './types_permission';
 
-// Enhanced stores with string IDs
+// --------------------
+// Core Stores
+// --------------------
 export const permissionStructure = writable<PermissionStructure | null>(null);
-export const userPermissions = writable<Set<string>>(new Set());  // ← CHANGED TO STRING
+export const userPermissions = writable<Set<string>>(new Set());
 export const treeSelection = writable<TreeSelectionState>({
-  expandedNodes: new Set<string>(),  // ← CHANGED TO STRING ONLY
-  selectedPermissions: new Map<string, Set<string>>(),  // ← CHANGED TO STRING
-  selectedModules: new Set<string>(),  // ← CHANGED TO STRING ONLY
-  selectedMenus: new Set<string>(),  // ← CHANGED TO STRING ONLY
+  expandedNodes: new Set<string>(),
+  selectedPermissions: new Map<string, Set<string>>(),
+  selectedModules: new Set<string>(),
+  selectedMenus: new Set<string>(),
   loading: false,
   searchTerm: ''
 });
 export const roleTemplates = writable<Map<string, RoleTemplate>>(new Map());
+
+// ENHANCED: Users store with role synchronization
+export const users = writable<User[]>([]);
+
+// ENHANCED: SystemRoles with permissions data
 export const systemRoles = writable<SystemRole[]>([]);
+
 export const systemStats = writable<RoleStatistics | null>(null);
 export const quickActions = writable<QuickAction[]>([]);
 export const auditLogs = writable<AuditLog[]>([]);
@@ -43,7 +52,9 @@ export const permissionConflicts = writable<PermissionConflictResponse>({
   recommendations: []
 });
 
-// Enhanced loading states with cache tracking
+// --------------------
+// Loading & Error States
+// --------------------
 export const loading = writable({
   structure: false,
   userPermissions: false,
@@ -52,12 +63,13 @@ export const loading = writable({
   roles: false,
   stats: false,
   quickActions: false,
+  systemRoles: false,
   auditLogs: false,
   health: false,
-  conflictCheck: false
+  conflictCheck: false,
+  users: false
 });
 
-// Enhanced error states with recovery
 export const error = writable({
   structure: null as string | null,
   userPermissions: null as string | null,
@@ -67,25 +79,39 @@ export const error = writable({
   quickActions: null as string | null,
   auditLogs: null as string | null,
   health: null as string | null,
-  conflictCheck: null as string | null
+  conflictCheck: null as string | null,
+  users: null as string | null
 });
 
-// Cache management
-const cache = {
-  permissionStructure: {
-    data: null as PermissionStructure | null,
-    timestamp: 0,
-    ttl: 5 * 60 * 1000 // 5 minutes
-  }
+// --------------------
+// Cache & TTL Configuration
+// --------------------
+const TTL = 60000; // 1 minute
+export const lastFetched = writable({
+  structure: 0,
+  roles: 0,
+  stats: 0,
+  quickActions: 0,
+  userPermissions: 0,
+  roleTemplates: 0
+});
+
+// Enhanced cache for permission structure with fallback
+const permissionStructureCache = {
+  data: null as PermissionStructure | null,
+  timestamp: 0,
+  ttl: 5 * 60 * 1000 // 5 minutes for structure (longer TTL)
 };
 
-// Derived state with caching
+// --------------------
+// Derived Stores
+// --------------------
 export const userMaxPower = derived(
   [permissionStructure, userPermissions],
   ([$permissionStructure, $userPermissions]) =>
     $permissionStructure 
       ? PermissionUtils.getMaxPower(
-          Array.from($userPermissions),  // Already string IDs
+          Array.from($userPermissions),
           $permissionStructure
         )
       : 0
@@ -120,7 +146,21 @@ export const currentConflicts = derived(
   }
 );
 
-// Helper functions
+// ENHANCED: Get role by key from store
+export const getRoleByKey = (roleKey: string) => {
+  const $systemRoles = get(systemRoles);
+  return $systemRoles.find(role => role.role_key === roleKey);
+};
+
+// ENHANCED: Get role permissions from store
+export const getRolePermissions = (roleKey: string): string[] => {
+  const role = getRoleByKey(roleKey);
+  return role?.permissions || [];
+};
+
+// --------------------
+// Helper Functions
+// --------------------
 function getAllPermissionsInModule(module: any) {
   const permissions: any[] = [];
   module.menus.forEach((menu: any) => {
@@ -145,16 +185,32 @@ function getAllPermissionsInMenu(menu: any) {
   return permissions;
 }
 
-// Enhanced permission actions with caching and error recovery
+// ENHANCED: Calculate role power level from permissions
+function calculateRolePowerLevel(permissionIds: string[], permissionStructure: PermissionStructure | null): number {
+  if (!permissionStructure) return 0;
+  return PermissionUtils.getMaxPower(permissionIds, permissionStructure);
+}
+
+// --------------------
+// Enhanced Permission Actions with Store-First Approach
+// --------------------
 export const permissionActions = {
+  // ✅ Load Permission Structure with TTL & Force Refresh
   async loadPermissionStructure(forceRefresh = false) {
     const now = Date.now();
+    const stale = now - get(lastFetched).structure > TTL;
     
-    // Check cache first
+    // Check if already loading or data is fresh
+    if (!forceRefresh && (get(loading).structure || (get(permissionStructure) && !stale))) {
+      return;
+    }
+
+    // Check cache first (with longer TTL)
     if (!forceRefresh && 
-        cache.permissionStructure.data && 
-        now - cache.permissionStructure.timestamp < cache.permissionStructure.ttl) {
-      permissionStructure.set(cache.permissionStructure.data);
+        permissionStructureCache.data && 
+        now - permissionStructureCache.timestamp < permissionStructureCache.ttl) {
+      permissionStructure.set(permissionStructureCache.data);
+      lastFetched.update(lf => ({ ...lf, structure: now }));
       return;
     }
 
@@ -165,9 +221,10 @@ export const permissionActions = {
       const structure = await permissionApi.getPermissionStructure();
       permissionStructure.set(structure);
       
-      // Update cache
-      cache.permissionStructure.data = structure;
-      cache.permissionStructure.timestamp = now;
+      // Update cache and timestamps
+      permissionStructureCache.data = structure;
+      permissionStructureCache.timestamp = now;
+      lastFetched.update(lf => ({ ...lf, structure: now }));
       
       // Clear utility cache when structure changes
       PermissionUtils.clearCache();
@@ -176,8 +233,8 @@ export const permissionActions = {
       error.update(e => ({ ...e, structure: errorMsg }));
       
       // Try to use cached data if available
-      if (cache.permissionStructure.data) {
-        permissionStructure.set(cache.permissionStructure.data);
+      if (permissionStructureCache.data) {
+        permissionStructure.set(permissionStructureCache.data);
         console.warn('Using cached permission structure due to API failure');
       }
     } finally {
@@ -185,13 +242,31 @@ export const permissionActions = {
     }
   },
 
-  async loadSystemRoles() {
+  // ✅ Load System Roles with Enhanced Data
+  async loadSystemRoles(force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).roles > TTL;
+
+    if (!force && (get(loading).roles || (get(systemRoles).length > 0 && !stale))) {
+      return;
+    }
+
     loading.update(l => ({ ...l, roles: true }));
     error.update(e => ({ ...e, roles: null }));
     
     try {
       const roles = await permissionApi.getSystemRoles();
-      systemRoles.set(roles);
+      
+      // ENHANCED: Calculate power levels and enhance role data
+      const $permissionStructure = get(permissionStructure);
+      const enhancedRoles = roles.map(role => ({
+        ...role,
+        power_level: calculateRolePowerLevel(role.permissions || [], $permissionStructure),
+        permissions: role.permissions || [] // Ensure permissions array exists
+      }));
+      
+      systemRoles.set(enhancedRoles);
+      lastFetched.update(lf => ({ ...lf, roles: now }));
     } catch (err) {
       const errorMsg = this.handleError(err, 'Failed to load system roles');
       error.update(e => ({ ...e, roles: errorMsg }));
@@ -200,65 +275,58 @@ export const permissionActions = {
     }
   },
 
-  async loadSystemStats() {
-    loading.update(l => ({ ...l, stats: true }));
-    error.update(e => ({ ...e, stats: null }));
-    
+  // ✅ Load users with role synchronization
+  async loadUsers(force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).users > TTL;
+
+    if (!force && (get(loading).users || (get(users).length > 0 && !stale))) {
+      return;
+    }
+
+    loading.update(l => ({ ...l, users: true }));
+    error.update(e => ({ ...e, users: null }));
+
     try {
-      const stats = await roleApi.getSystemStats();
-      systemStats.set(stats);
-    } catch (err) {
-      const errorMsg = this.handleError(err, 'Failed to load system stats');
-      error.update(e => ({ ...e, stats: errorMsg }));
+      const data = await permissionApi.getUsers();
+      users.set(data);
+      lastFetched.update(lf => ({ ...lf, users: now }));
+    } catch (err: any) {
+      error.update(e => ({ ...e, users: err.message }));
     } finally {
-      loading.update(l => ({ ...l, stats: false }));
+      loading.update(l => ({ ...l, users: false }));
     }
   },
 
-  async loadQuickActions() {
-    loading.update(l => ({ ...l, quickActions: true }));
-    error.update(e => ({ ...e, quickActions: null }));
-    
-    try {
-      const actions = await permissionApi.getQuickActions();
-      quickActions.set(actions);
-    } catch (err) {
-      const errorMsg = this.handleError(err, 'Failed to load quick actions');
-      error.update(e => ({ ...e, quickActions: errorMsg }));
-    } finally {
-      loading.update(l => ({ ...l, quickActions: false }));
+  // ✅ Load Role Data from Store (No API Call Needed)
+  async loadRoleData(roleKey: string) {
+    const role = getRoleByKey(roleKey);
+    if (!role) {
+      throw new Error(`Role ${roleKey} not found in store`);
     }
-  },
 
-  async loadRolePermissions(roleId: string) {
-    try {
-      const response = await permissionApi.getRolePermissions(roleId);
-      
-      // Clear existing selections
-      permissionActions.clearAllPermissions();
-      
-      // Select permissions from backend (already string IDs)
-      response.permission_ids.forEach(permId => {
-        permissionActions.selectPermissionGlobally(permId);
+    // Clear existing selections
+    this.clearAllPermissions();
+    
+    // Select permissions from store data
+    if (role.permissions && role.permissions.length > 0) {
+      role.permissions.forEach(permId => {
+        this.selectPermissionGlobally(permId);
       });
-      
-      // Check for conflicts
-      await this.checkPermissionConflicts();
-      
-      return response.permission_ids;
-    } catch (err) {
-      const errorMsg = this.handleError(err, 'Failed to load role permissions');
-      throw new Error(errorMsg);
     }
+    
+    // Check for conflicts
+    await this.checkPermissionConflicts();
+    
+    return role;
   },
 
-  async updateRolePermissions(roleId: string): Promise<{ success: boolean; message: string; conflicts?: PermissionConflictResponse }> {
+  // ✅ Enhanced Role Permissions Update (Update Store + API)
+  async updateRolePermissions(roleKey: string, permissionIds: string[]): Promise<{ success: boolean; message: string; conflicts?: PermissionConflictResponse }> {
     loading.update(l => ({ ...l, saving: true }));
     error.update(e => ({ ...e, saving: null }));
     
     try {
-      const permissionIds = get(selectedPermissionIds);
-      
       // Check for conflicts before saving
       const conflicts = get(currentConflicts);
       if (conflicts.has_conflicts) {
@@ -269,13 +337,27 @@ export const permissionActions = {
         };
       }
       
-      const result = await permissionApi.updateRolePermissions(roleId, permissionIds);
+      // Update local store FIRST for immediate UI update
+      this.updateRoleInStore(roleKey, {
+        permissions: permissionIds,
+        permission_count: permissionIds.length,
+        power_level: calculateRolePowerLevel(permissionIds, get(permissionStructure)),
+        updated_at: new Date().toISOString()
+      });
+      
+      // Then call API for persistence
+      const result = await permissionApi.updateRolePermissions(roleKey, permissionIds);
+      
+      // Invalidate relevant caches after update
+      this.invalidateStatsCache();
       
       return {
         success: true,
         message: result.message || 'Permissions saved successfully'
       };
     } catch (err) {
+      // Rollback store update on error
+      this.rollbackRoleUpdate(roleKey);
       const errorMsg = this.handleError(err, 'Failed to save permissions');
       error.update(e => ({ ...e, saving: errorMsg }));
       
@@ -288,48 +370,73 @@ export const permissionActions = {
     }
   },
 
-  async loadUserPermissions(userId: number) {
-    loading.update(l => ({ ...l, userPermissions: true }));
-    error.update(e => ({ ...e, userPermissions: null }));
-    
-    try {
-      const response = await permissionApi.getUserPermissions(userId);
-      userPermissions.set(new Set(response.permission_ids));  // Already string IDs
-    } catch (err) {
-      const errorMsg = this.handleError(err, 'Failed to load user permissions');
-      error.update(e => ({ ...e, userPermissions: errorMsg }));
-    } finally {
-      loading.update(l => ({ ...l, userPermissions: false }));
-    }
-  },
-
-  async loadRoleTemplates() {
-    try {
-      console.log('inside load role templates');
-      const templates = await permissionApi.getRoleTemplates();
-      
-      console.log(templates);
-      roleTemplates.set(new Map(Object.entries(templates)));
-    } catch (err) {
-      console.error('Failed to load role templates:', this.handleError(err));
-    }
-  },
-
-  // Enhanced role assignment with conflict checking
-  async loadUserRoles(userId: number): Promise<UserRoleAssignment> {
-    try {
-      return await roleApi.getUserRoles(userId);
-    } catch (err) {
-      const errorMsg = this.handleError(err, 'Failed to load user roles');
-      throw new Error(errorMsg);
-    }
-  },
-
-  async updateUserRole(userId: number, role: string): Promise<{ success: boolean; message: string }> {
+  // ✅ Create New Role (Store + API)
+  async createRole(roleData: { name: string; description: string; permissions: string[] }): Promise<{ success: boolean; message: string; role?: SystemRole }> {
     loading.update(l => ({ ...l, saving: true }));
     
     try {
-      const result = await roleApi.updateUserRole(userId, role);
+      // Call API to create role
+      const result = await permissionApi.createRole({
+        name: roleData.name,
+        description: roleData.description,
+        permission_ids: roleData.permissions
+      });
+      
+      if (result.success) {
+        // Add new role to store
+        const newRole: SystemRole = {
+          role_key: roleData.name.toLowerCase().replace(/\s+/g, '_'),
+          display_name: roleData.name,
+          description: roleData.description,
+          is_system_role: false,
+          permission_count: roleData.permissions.length,
+          user_count: 0,
+          organization_name: 'Custom',
+          permissions: roleData.permissions,
+          power_level: calculateRolePowerLevel(roleData.permissions, get(permissionStructure)),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        systemRoles.update(roles => [...roles, newRole]);
+        this.invalidateStatsCache();
+        
+        return {
+          success: true,
+          message: result.message || 'Role created successfully',
+          role: newRole
+        };
+      } else {
+        return {
+          success: false,
+          message: result.message || 'Failed to create role'
+        };
+      }
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to create role');
+      return {
+        success: false,
+        message: errorMsg
+      };
+    } finally {
+      loading.update(l => ({ ...l, saving: false }));
+    }
+  },
+
+  // ✅ Update user role (Store + API)
+  async updateUserRole(userId: number, roles: string[]): Promise<{ success: boolean; message: string }> {
+    loading.update(l => ({ ...l, saving: true }));
+
+    try {
+      // Update local store FIRST
+      this.updateUserRolesInStore(userId, roles);
+      
+      // Then call API (using first role for now)
+      const result = await roleApi.updateUserRole(userId, roles[0]);
+      
+      // Invalidate caches after update
+      this.invalidateStatsCache();
+      
       return {
         success: true,
         message: result.message || 'User role updated successfully'
@@ -345,6 +452,199 @@ export const permissionActions = {
     }
   },
 
+  // ✅ Load System Stats with TTL & Deduplication
+  async loadSystemStats(force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).stats > TTL;
+
+    if (!force && (get(loading).stats || (get(systemStats) && !stale))) {
+      return;
+    }
+
+    loading.update(l => ({ ...l, stats: true }));
+    error.update(e => ({ ...e, stats: null }));
+    
+    try {
+      const stats = await roleApi.getSystemStats();
+      systemStats.set(stats);
+      lastFetched.update(lf => ({ ...lf, stats: now }));
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to load system stats');
+      error.update(e => ({ ...e, stats: errorMsg }));
+    } finally {
+      loading.update(l => ({ ...l, stats: false }));
+    }
+  },
+
+  // ✅ Load Quick Actions with TTL & Deduplication
+  async loadQuickActions(force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).quickActions > TTL;
+
+    if (!force && (get(loading).quickActions || (get(quickActions).length > 0 && !stale))) {
+      return;
+    }
+
+    loading.update(l => ({ ...l, quickActions: true }));
+    error.update(e => ({ ...e, quickActions: null }));
+    
+    try {
+      const actions = await permissionApi.getQuickActions();
+      quickActions.set(actions);
+      lastFetched.update(lf => ({ ...lf, quickActions: now }));
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to load quick actions');
+      error.update(e => ({ ...e, quickActions: errorMsg }));
+    } finally {
+      loading.update(l => ({ ...l, quickActions: false }));
+    }
+  },
+
+  // ✅ Load Role Templates with TTL & Deduplication
+  async loadRoleTemplates(force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).roleTemplates > TTL;
+
+    if (!force && (get(roleTemplates).size > 0 && !stale)) {
+      return;
+    }
+
+    try {
+      const templates = await permissionApi.getRoleTemplates();
+      roleTemplates.set(new Map(Object.entries(templates)));
+      lastFetched.update(lf => ({ ...lf, roleTemplates: now }));
+    } catch (err) {
+      console.error('Failed to load role templates:', this.handleError(err));
+    }
+  },
+
+  // ✅ Load User Permissions with TTL & Deduplication
+  async loadUserPermissions(userId: number, force = false) {
+    const now = Date.now();
+    const stale = now - get(lastFetched).userPermissions > TTL;
+
+    if (!force && (get(loading).userPermissions || (!stale && get(userPermissions).size > 0))) {
+      return;
+    }
+
+    loading.update(l => ({ ...l, userPermissions: true }));
+    error.update(e => ({ ...e, userPermissions: null }));
+    
+    try {
+      const response = await permissionApi.getUserPermissions(userId);
+      userPermissions.set(new Set(response.permission_ids));
+      lastFetched.update(lf => ({ ...lf, userPermissions: now }));
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to load user permissions');
+      error.update(e => ({ ...e, userPermissions: errorMsg }));
+    } finally {
+      loading.update(l => ({ ...l, userPermissions: false }));
+    }
+  },
+
+  // ✅ Combined Dashboard Loader
+  async loadDashboard(force = false) {
+    await Promise.all([
+      this.loadPermissionStructure(force),
+      this.loadSystemRoles(force),
+      this.loadSystemStats(force),
+      this.loadQuickActions(force),
+      this.loadRoleTemplates(force)
+    ]);
+  },
+
+  // ✅ Helper: Update role in store
+  updateRoleInStore(roleKey: string, updates: Partial<SystemRole>) {
+    systemRoles.update(roles => 
+      roles.map(role => 
+        role.role_key === roleKey 
+          ? { ...role, ...updates }
+          : role
+      )
+    );
+  },
+
+  // ✅ Helper: Update user roles in store
+  updateUserRolesInStore(userId: number, roles: string[]) {
+    users.update(userList =>
+      userList.map(user =>
+        user.id === userId
+          ? { ...user, roles }
+          : user
+      )
+    );
+  },
+
+  // ✅ Helper: Rollback role update on error
+  rollbackRoleUpdate(roleKey: string) {
+    // In a real app, you might want to reload the role data
+    // For now, we'll just invalidate the cache to force reload
+    this.invalidateRolesCache();
+  },
+
+  // ✅ Cache Invalidation Methods
+  invalidateStructureCache() {
+    permissionStructure.set(null);
+    permissionStructureCache.data = null;
+    permissionStructureCache.timestamp = 0;
+    lastFetched.update(lf => ({ ...lf, structure: 0 }));
+  },
+
+  invalidateRolesCache() {
+    systemRoles.set([]);
+    lastFetched.update(lf => ({ ...lf, roles: 0 }));
+  },
+
+  invalidateUsersCache() {
+    users.set([]);
+    lastFetched.update(lf => ({ ...lf, users: 0 }));
+  },
+
+  invalidateStatsCache() {
+    systemStats.set(null);
+    lastFetched.update(lf => ({ ...lf, stats: 0 }));
+  },
+
+  invalidateQuickActionsCache() {
+    quickActions.set([]);
+    lastFetched.update(lf => ({ ...lf, quickActions: 0 }));
+  },
+
+  invalidateUserPermissionsCache() {
+    userPermissions.set(new Set());
+    lastFetched.update(lf => ({ ...lf, userPermissions: 0 }));
+  },
+
+  invalidateAllCache() {
+    this.invalidateStructureCache();
+    this.invalidateRolesCache();
+    this.invalidateStatsCache();
+    this.invalidateQuickActionsCache();
+    this.invalidateUserPermissionsCache();
+    roleTemplates.set(new Map());
+    lastFetched.update(lf => ({ ...lf, roleTemplates: 0 }));
+  },
+
+  // ✅ Existing methods for role operations
+  async loadRolePermissions(roleId: string) {
+    try {
+      // Use store-first approach instead of API call
+      return await this.loadRoleData(roleId);
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to load role permissions');
+      throw new Error(errorMsg);
+    }
+  },
+
+  async loadUserRoles(userId: number): Promise<UserRoleAssignment> {
+    try {
+      return await roleApi.getUserRoles(userId);
+    } catch (err) {
+      const errorMsg = this.handleError(err, 'Failed to load user roles');
+      throw new Error(errorMsg);
+    }
+  },
+
   async loadUsersByRole(roleName: string): Promise<UsersByRoleResponse> {
     try {
       return await roleApi.getUsersByRole(roleName);
@@ -357,6 +657,10 @@ export const permissionActions = {
   async assignUserToRole(userId: number, roleName: string): Promise<{ success: boolean; message: string }> {
     try {
       const result = await roleApi.assignUserToRole(userId, roleName);
+      
+      // Invalidate caches after assignment
+      this.invalidateStatsCache();
+      
       return {
         success: true,
         message: result.message || 'User assigned to role successfully'
@@ -373,6 +677,10 @@ export const permissionActions = {
   async removeUserFromRole(userId: number, roleName: string): Promise<{ success: boolean; message: string }> {
     try {
       const result = await roleApi.removeUserFromRole(userId, roleName);
+      
+      // Invalidate caches after removal
+      this.invalidateStatsCache();
+      
       return {
         success: true,
         message: result.message || 'User removed from role successfully'
@@ -395,6 +703,10 @@ export const permissionActions = {
     
     try {
       const result = await roleApi.bulkUpdateUserRoles(updates);
+      
+      // Invalidate caches after bulk update
+      this.invalidateStatsCache();
+      
       return {
         success: true,
         message: result.message || 'Bulk update completed successfully',
@@ -516,7 +828,7 @@ export const permissionActions = {
   },
 
   // Permission selection actions
-  togglePermissionSelection(cardId: string, permissionId: string) {  // ← CHANGED PARAM TYPES
+  togglePermissionSelection(cardId: string, permissionId: string) {
     treeSelection.update(ts => {
       const newSelectedPermissions = new Map(ts.selectedPermissions);
       const cardPermissions = newSelectedPermissions.get(cardId) || new Set<string>();
@@ -535,7 +847,7 @@ export const permissionActions = {
     this.checkPermissionConflicts();
   },
 
-  selectAllCardPermissions(cardId: string, permissionIds: string[]) {  // ← CHANGED PARAM TYPES
+  selectAllCardPermissions(cardId: string, permissionIds: string[]) {
     treeSelection.update(ts => {
       const newSelectedPermissions = new Map(ts.selectedPermissions);
       newSelectedPermissions.set(cardId, new Set(permissionIds));
@@ -585,7 +897,7 @@ export const permissionActions = {
   },
 
   // Validation
-  async validatePermissions(parentPermissionIds: string[], childPermissionIds: string[]) {  // ← CHANGED PARAM TYPES
+  async validatePermissions(parentPermissionIds: string[], childPermissionIds: string[]) {
     loading.update(l => ({ ...l, validation: true }));
     
     try {
@@ -609,7 +921,7 @@ export const permissionActions = {
   },
 
   // Global permission synchronization actions
-  togglePermissionGlobally(permissionId: string) {  // ← CHANGED PARAM TYPE
+  togglePermissionGlobally(permissionId: string) {
     const $selectedPermissionIds = get(selectedPermissionIds);
     const isSelected = $selectedPermissionIds.includes(permissionId);
     
@@ -620,11 +932,11 @@ export const permissionActions = {
     }
   },
 
-  selectPermissionGlobally(permissionId: string) {  // ← CHANGED PARAM TYPE
+  selectPermissionGlobally(permissionId: string) {
     permissionActions.selectPermissionEverywhere(permissionId);
   },
 
-  selectPermissionEverywhere(permissionId: string) {  // ← CHANGED PARAM TYPE
+  selectPermissionEverywhere(permissionId: string) {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
     
@@ -665,7 +977,7 @@ export const permissionActions = {
     this.checkPermissionConflicts();
   },
 
-  deselectPermissionEverywhere(permissionId: string) {  // ← CHANGED PARAM TYPE
+  deselectPermissionEverywhere(permissionId: string) {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
     
@@ -766,15 +1078,23 @@ export const permissionActions = {
 
   // Cache management
   clearCache() {
-    cache.permissionStructure.data = null;
-    cache.permissionStructure.timestamp = 0;
+    permissionStructureCache.data = null;
+    permissionStructureCache.timestamp = 0;
     PermissionUtils.clearCache();
   },
 
   getCacheStats() {
+    const $lastFetched = get(lastFetched);
+    const now = Date.now();
+    
     return {
-      ...PermissionUtils.getCacheStats(),
-      structureCache: cache.permissionStructure.data ? 'valid' : 'empty'
+      structure: $lastFetched.structure > 0 ? now - $lastFetched.structure : 'never',
+      roles: $lastFetched.roles > 0 ? now - $lastFetched.roles : 'never',
+      stats: $lastFetched.stats > 0 ? now - $lastFetched.stats : 'never',
+      quickActions: $lastFetched.quickActions > 0 ? now - $lastFetched.quickActions : 'never',
+      userPermissions: $lastFetched.userPermissions > 0 ? now - $lastFetched.userPermissions : 'never',
+      structureCache: permissionStructureCache.data ? 'valid' : 'empty',
+      ...PermissionUtils.getCacheStats()
     };
   },
 
@@ -807,9 +1127,5 @@ export const permissionActions = {
   }
 };
 
-// Initialize with API data
-permissionActions.loadPermissionStructure();
-permissionActions.loadRoleTemplates();
-permissionActions.loadSystemRoles();
-permissionActions.loadSystemStats();
-permissionActions.loadQuickActions();
+// ✅ Initialize with single dashboard call (instead of multiple separate calls)
+permissionActions.loadDashboard();

@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { permissionState, permissionActions } from '$lib/permission/stores_permission';
+  import { permissionState, permissionActions } from '$lib/permission/stores_permission.ts';
   import { PermissionUtils } from '$lib/permission/utils_permission';
 
   let formData = {

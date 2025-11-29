@@ -42,10 +42,11 @@ class DatabaseManager:
                     cursor.execute(query, params)
                     
                     if fetch:
+                        # SELECT queries - just fetch, no commit needed
                         result = [dict(row) for row in cursor.fetchall()]
-                        conn.commit()
                         return result
                     else:
+                        # INSERT/UPDATE/DELETE - commit required
                         conn.commit()
                         return cursor.rowcount
                         

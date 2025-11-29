@@ -424,4 +424,43 @@ export class PermissionUtils {
       conflictCache: this.conflictCache.size
     };
   }
+
+  // Add to utils_permission.ts
+static isCardFullySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
+  const card = this.findCardById(cardId, permissionStructure);
+  if (!card) return false;
+  
+  const cardPermissionIds = card.permissions.map(p => p.id);
+  const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
+  
+  return cardPermissionIds.every(permissionId => 
+    selectedPermissionIds.includes(permissionId)
+  );
+}
+
+static isCardPartiallySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
+  const card = this.findCardById(cardId, permissionStructure);
+  if (!card) return false;
+  
+  const cardPermissionIds = card.permissions.map(p => p.id);
+  const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
+  
+  return cardPermissionIds.some(permissionId => 
+    selectedPermissionIds.includes(permissionId)
+  ) && !this.isCardFullySelected(cardId, selectedPermissions, permissionStructure);
+}
+
+static findCardById(cardId: string, permissionStructure: PermissionStructure): CardDetail | null {
+  for (const module of permissionStructure.modules) {
+    for (const menu of module.menus) {
+      for (const card of menu.cards) {
+        if (card.id === cardId) {
+          return card;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 }

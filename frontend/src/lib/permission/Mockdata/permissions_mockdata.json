@@ -2,165 +2,355 @@
   "permissionStructure": {
     "modules": [
       {
-        "id": "content",
-        "key": "content",
-        "name": "Content Management",
-        "icon": "📝",
+        "id": "mod_1",
+        "key": "user_management",
+        "name": "User Management",
+        "icon": "👥",
         "color": "#3B82F6",
-        "description": "Manage articles, posts, and content across the platform",
+        "description": "Manage users, roles, and permissions",
         "display_order": 1,
+        "allowed_actions": [
+          {
+            "action_key": "module_view",
+            "display_name": "View Module",
+            "power_level": 10,
+            "category": "access"
+          },
+          {
+            "action_key": "module_configure",
+            "display_name": "Configure Module",
+            "power_level": 80,
+            "category": "administration"
+          }
+        ],
         "menus": [
           {
-            "id": "articles",
-            "key": "articles",
-            "name": "Articles",
-            "description": "Create and manage articles and blog posts",
+            "id": "menu_1",
+            "key": "users",
+            "name": "Users",
+            "description": "Manage system users",
             "display_order": 1,
-            "module_id": "content",
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_access",
+                "display_name": "Access Menu",
+                "power_level": 15,
+                "category": "access"
+              }
+            ],
             "permissions": [
               {
-                "id": "5001",
-                "permission_action": "browse",
-                "display_name": "Browse Articles",
-                "description": "View and list all articles",
-                "power_level": 10,
-                "default_roles": ["basic", "creator", "moderator", "admin"],
-                "icon": "👁️",
-                "card_id": null,
-                "card_name": null,
-                "menu_name": "Articles",
-                "module_name": "Content Management"
+                "id": "perm_1",
+                "permission_action": "user.view",
+                "display_name": "View Users",
+                "description": "Can view user list and details",
+                "power_level": 20,
+                "default_roles": ["viewer", "user_manager"],
+                "icon": "👀",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
+              },
+              {
+                "id": "perm_2",
+                "permission_action": "user.create",
+                "display_name": "Create Users",
+                "description": "Can create new users",
+                "power_level": 50,
+                "default_roles": ["user_manager", "admin"],
+                "icon": "➕",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
               }
             ],
             "cards": [
               {
-                "id": "article_management",
-                "key": "article_management",
-                "name": "Article Management",
-                "description": "Full article creation and editing capabilities",
+                "id": "card_1",
+                "key": "user_list",
+                "name": "User List",
+                "description": "View and manage all users",
                 "display_order": 1,
-                "menu_id": "articles",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_view",
+                    "display_name": "View Card",
+                    "power_level": 15,
+                    "category": "access"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "5002",
-                    "permission_action": "create",
-                    "display_name": "Create Articles",
-                    "description": "Create new articles and blog posts",
-                    "power_level": 30,
-                    "default_roles": ["creator", "moderator", "admin"],
+                    "id": "perm_1",
+                    "permission_action": "user.view",
+                    "display_name": "View Users",
+                    "description": "Can view user list and details",
+                    "power_level": 20,
+                    "default_roles": ["viewer", "user_manager"],
+                    "icon": "👀",
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_2",
+                    "permission_action": "user.create",
+                    "display_name": "Create Users",
+                    "description": "Can create new users",
+                    "power_level": 50,
+                    "default_roles": ["user_manager", "admin"],
                     "icon": "➕",
-                    "card_id": "article_management",
-                    "card_name": "Article Management",
-                    "menu_name": "Articles",
-                    "module_name": "Content Management"
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
                   },
                   {
-                    "id": "5003",
-                    "permission_action": "edit",
-                    "display_name": "Edit Articles",
-                    "description": "Modify existing articles and content",
+                    "id": "perm_3",
+                    "permission_action": "user.edit",
+                    "display_name": "Edit Users",
+                    "description": "Can edit user information",
                     "power_level": 40,
-                    "default_roles": ["creator", "moderator", "admin"],
+                    "default_roles": ["user_manager", "admin"],
                     "icon": "✏️",
-                    "card_id": "article_management",
-                    "card_name": "Article Management",
-                    "menu_name": "Articles",
-                    "module_name": "Content Management"
-                  },
-                  {
-                    "id": "5004",
-                    "permission_action": "delete",
-                    "display_name": "Delete Articles",
-                    "description": "Remove articles and blog posts",
-                    "power_level": 60,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "🗑️",
-                    "card_id": "article_management",
-                    "card_name": "Article Management",
-                    "menu_name": "Articles",
-                    "module_name": "Content Management"
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
                   }
                 ]
               },
               {
-                "id": "article_moderation",
-                "key": "article_moderation",
-                "name": "Article Moderation",
-                "description": "Advanced article moderation tools",
+                "id": "card_2",
+                "key": "user_roles",
+                "name": "User Roles",
+                "description": "Manage user roles and permissions",
                 "display_order": 2,
-                "menu_id": "articles",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_configure",
+                    "display_name": "Configure Roles",
+                    "power_level": 70,
+                    "category": "administration"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "5005",
-                    "permission_action": "approve",
-                    "display_name": "Approve Articles",
-                    "description": "Approve articles for publication",
-                    "power_level": 50,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "✅",
-                    "card_id": "article_moderation",
-                    "card_name": "Article Moderation",
-                    "menu_name": "Articles",
-                    "module_name": "Content Management"
-                  },
-                  {
-                    "id": "5006",
-                    "permission_action": "reject",
-                    "display_name": "Reject Articles",
-                    "description": "Reject articles from publication",
-                    "power_level": 55,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "❌",
-                    "card_id": "article_moderation",
-                    "card_name": "Article Moderation",
-                    "menu_name": "Articles",
-                    "module_name": "Content Management"
+                    "id": "perm_4",
+                    "permission_action": "role.assign",
+                    "display_name": "Assign Roles",
+                    "description": "Can assign roles to users",
+                    "power_level": 60,
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "🎭",
+                    "card_id": "card_2",
+                    "card_name": "User Roles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
                   }
                 ]
               }
             ]
           },
           {
-            "id": "media",
-            "key": "media",
-            "name": "Media Library",
-            "description": "Manage images, videos, and media files",
+            "id": "menu_2",
+            "key": "roles",
+            "name": "Roles & Permissions",
+            "description": "Manage roles and permissions",
             "display_order": 2,
-            "module_id": "content",
-            "permissions": [],
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_admin",
+                "display_name": "Admin Access",
+                "power_level": 90,
+                "category": "administration"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_5",
+                "permission_action": "role.view",
+                "display_name": "View Roles",
+                "description": "Can view roles and permissions",
+                "power_level": 30,
+                "default_roles": ["viewer", "user_manager", "admin"],
+                "icon": "📋",
+                "card_id": "card_3",
+                "card_name": "Role Management",
+                "menu_name": "Roles & Permissions",
+                "module_name": "User Management"
+              }
+            ],
             "cards": [
               {
-                "id": "media_upload",
-                "key": "media_upload",
-                "name": "Media Upload",
-                "description": "Upload and manage media files",
+                "id": "card_3",
+                "key": "role_management",
+                "name": "Role Management",
+                "description": "Create and manage roles",
                 "display_order": 1,
-                "menu_id": "media",
+                "menu_id": "menu_2",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_manage",
+                    "display_name": "Manage Roles",
+                    "power_level": 80,
+                    "category": "administration"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "5007",
-                    "permission_action": "upload",
-                    "display_name": "Upload Media",
-                    "description": "Upload new media files to the library",
-                    "power_level": 25,
-                    "default_roles": ["creator", "moderator", "admin"],
-                    "icon": "📤",
-                    "card_id": "media_upload",
-                    "card_name": "Media Upload",
-                    "menu_name": "Media Library",
+                    "id": "perm_5",
+                    "permission_action": "role.view",
+                    "display_name": "View Roles",
+                    "description": "Can view roles and permissions",
+                    "power_level": 30,
+                    "default_roles": ["viewer", "user_manager", "admin"],
+                    "icon": "📋",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_6",
+                    "permission_action": "role.create",
+                    "display_name": "Create Roles",
+                    "description": "Can create new roles",
+                    "power_level": 80,
+                    "default_roles": ["admin"],
+                    "icon": "🆕",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_7",
+                    "permission_action": "role.edit",
+                    "display_name": "Edit Roles",
+                    "description": "Can edit role permissions",
+                    "power_level": 85,
+                    "default_roles": ["admin"],
+                    "icon": "⚙️",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "mod_2",
+        "key": "content_management",
+        "name": "Content Management",
+        "icon": "📄",
+        "color": "#10B981",
+        "description": "Manage website content and pages",
+        "display_order": 2,
+        "allowed_actions": [
+          {
+            "action_key": "module_access",
+            "display_name": "Access Content",
+            "power_level": 15,
+            "category": "access"
+          }
+        ],
+        "menus": [
+          {
+            "id": "menu_3",
+            "key": "pages",
+            "name": "Pages",
+            "description": "Manage website pages",
+            "display_order": 1,
+            "module_id": "mod_2",
+            "allowed_actions": [
+              {
+                "action_key": "menu_edit",
+                "display_name": "Edit Pages",
+                "power_level": 40,
+                "category": "content"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_8",
+                "permission_action": "page.view",
+                "display_name": "View Pages",
+                "description": "Can view page list and content",
+                "power_level": 20,
+                "default_roles": ["viewer", "content_editor"],
+                "icon": "📖",
+                "card_id": "card_4",
+                "card_name": "Page Manager",
+                "menu_name": "Pages",
+                "module_name": "Content Management"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_4",
+                "key": "page_manager",
+                "name": "Page Manager",
+                "description": "Create and edit website pages",
+                "display_order": 1,
+                "menu_id": "menu_3",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_publish",
+                    "display_name": "Publish Content",
+                    "power_level": 60,
+                    "category": "publishing"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "id": "perm_8",
+                    "permission_action": "page.view",
+                    "display_name": "View Pages",
+                    "description": "Can view page list and content",
+                    "power_level": 20,
+                    "default_roles": ["viewer", "content_editor"],
+                    "icon": "📖",
+                    "card_id": "card_4",
+                    "card_name": "Page Manager",
+                    "menu_name": "Pages",
                     "module_name": "Content Management"
                   },
                   {
-                    "id": "5008",
-                    "permission_action": "manage",
-                    "display_name": "Manage Media",
-                    "description": "Organize and manage media library",
-                    "power_level": 45,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "🖼️",
-                    "card_id": "media_upload",
-                    "card_name": "Media Upload",
-                    "menu_name": "Media Library",
+                    "id": "perm_9",
+                    "permission_action": "page.create",
+                    "display_name": "Create Pages",
+                    "description": "Can create new pages",
+                    "power_level": 50,
+                    "default_roles": ["content_editor", "admin"],
+                    "icon": "📝",
+                    "card_id": "card_4",
+                    "card_name": "Page Manager",
+                    "menu_name": "Pages",
+                    "module_name": "Content Management"
+                  },
+                  {
+                    "id": "perm_10",
+                    "permission_action": "page.publish",
+                    "display_name": "Publish Pages",
+                    "description": "Can publish and unpublish pages",
+                    "power_level": 70,
+                    "default_roles": ["content_editor", "admin"],
+                    "icon": "🚀",
+                    "card_id": "card_4",
+                    "card_name": "Page Manager",
+                    "menu_name": "Pages",
                     "module_name": "Content Management"
                   }
                 ]
@@ -170,104 +360,246 @@
         ]
       },
       {
-        "id": "user_management",
+        "id": "mod_3",
         "key": "user_management",
         "name": "User Management",
         "icon": "👥",
-        "color": "#10B981",
+        "color": "#3B82F6",
         "description": "Manage users, roles, and permissions",
-        "display_order": 2,
+        "display_order": 1,
+        "allowed_actions": [
+          {
+            "action_key": "module_view",
+            "display_name": "View Module",
+            "power_level": 10,
+            "category": "access"
+          },
+          {
+            "action_key": "module_configure",
+            "display_name": "Configure Module",
+            "power_level": 80,
+            "category": "administration"
+          }
+        ],
         "menus": [
           {
-            "id": "users",
+            "id": "menu_1",
             "key": "users",
             "name": "Users",
-            "description": "Manage user accounts and profiles",
+            "description": "Manage system users",
             "display_order": 1,
-            "module_id": "user_management",
-            "permissions": [],
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_access",
+                "display_name": "Access Menu",
+                "power_level": 15,
+                "category": "access"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_1",
+                "permission_action": "user.view",
+                "display_name": "View Users",
+                "description": "Can view user list and details",
+                "power_level": 20,
+                "default_roles": ["viewer", "user_manager"],
+                "icon": "👀",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
+              },
+              {
+                "id": "perm_2",
+                "permission_action": "user.create",
+                "display_name": "Create Users",
+                "description": "Can create new users",
+                "power_level": 50,
+                "default_roles": ["user_manager", "admin"],
+                "icon": "➕",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
+              }
+            ],
             "cards": [
               {
-                "id": "user_profiles",
-                "key": "user_profiles",
-                "name": "User Profiles",
-                "description": "View and manage user profiles",
+                "id": "card_1",
+                "key": "user_list",
+                "name": "User List",
+                "description": "View and manage all users",
                 "display_order": 1,
-                "menu_id": "users",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_view",
+                    "display_name": "View Card",
+                    "power_level": 15,
+                    "category": "access"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "6001",
-                    "permission_action": "view",
-                    "display_name": "View Profiles",
-                    "description": "View user profiles and information",
-                    "power_level": 15,
-                    "default_roles": ["basic", "creator", "moderator", "admin"],
-                    "icon": "👤",
-                    "card_id": "user_profiles",
-                    "card_name": "User Profiles",
+                    "id": "perm_1",
+                    "permission_action": "user.view",
+                    "display_name": "View Users",
+                    "description": "Can view user list and details",
+                    "power_level": 20,
+                    "default_roles": ["viewer", "user_manager"],
+                    "icon": "👀",
+                    "card_id": "card_1",
+                    "card_name": "User List",
                     "menu_name": "Users",
                     "module_name": "User Management"
                   },
                   {
-                    "id": "6002",
-                    "permission_action": "edit",
-                    "display_name": "Edit Profiles",
-                    "description": "Modify user profile information",
+                    "id": "perm_2",
+                    "permission_action": "user.create",
+                    "display_name": "Create Users",
+                    "description": "Can create new users",
                     "power_level": 50,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "✏️",
-                    "card_id": "user_profiles",
-                    "card_name": "User Profiles",
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "➕",
+                    "card_id": "card_1",
+                    "card_name": "User List",
                     "menu_name": "Users",
                     "module_name": "User Management"
                   },
                   {
-                    "id": "6003",
-                    "permission_action": "delete",
-                    "display_name": "Delete Users",
-                    "description": "Remove user accounts from system",
-                    "power_level": 90,
-                    "default_roles": ["admin"],
-                    "icon": "🗑️",
-                    "card_id": "user_profiles",
-                    "card_name": "User Profiles",
+                    "id": "perm_3",
+                    "permission_action": "user.edit",
+                    "display_name": "Edit Users",
+                    "description": "Can edit user information",
+                    "power_level": 40,
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "✏️",
+                    "card_id": "card_1",
+                    "card_name": "User List",
                     "menu_name": "Users",
                     "module_name": "User Management"
                   }
                 ]
               },
               {
-                "id": "user_roles",
+                "id": "card_2",
                 "key": "user_roles",
                 "name": "User Roles",
                 "description": "Manage user roles and permissions",
                 "display_order": 2,
-                "menu_id": "users",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_configure",
+                    "display_name": "Configure Roles",
+                    "power_level": 70,
+                    "category": "administration"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "6004",
-                    "permission_action": "assign",
+                    "id": "perm_4",
+                    "permission_action": "role.assign",
                     "display_name": "Assign Roles",
-                    "description": "Assign roles to users",
-                    "power_level": 70,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "🔧",
-                    "card_id": "user_roles",
+                    "description": "Can assign roles to users",
+                    "power_level": 60,
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "🎭",
+                    "card_id": "card_2",
                     "card_name": "User Roles",
                     "menu_name": "Users",
                     "module_name": "User Management"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "menu_2",
+            "key": "roles",
+            "name": "Roles & Permissions",
+            "description": "Manage roles and permissions",
+            "display_order": 2,
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_admin",
+                "display_name": "Admin Access",
+                "power_level": 90,
+                "category": "administration"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_5",
+                "permission_action": "role.view",
+                "display_name": "View Roles",
+                "description": "Can view roles and permissions",
+                "power_level": 30,
+                "default_roles": ["viewer", "user_manager", "admin"],
+                "icon": "📋",
+                "card_id": "card_3",
+                "card_name": "Role Management",
+                "menu_name": "Roles & Permissions",
+                "module_name": "User Management"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_3",
+                "key": "role_management",
+                "name": "Role Management",
+                "description": "Create and manage roles",
+                "display_order": 1,
+                "menu_id": "menu_2",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_manage",
+                    "display_name": "Manage Roles",
+                    "power_level": 80,
+                    "category": "administration"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "id": "perm_5",
+                    "permission_action": "role.view",
+                    "display_name": "View Roles",
+                    "description": "Can view roles and permissions",
+                    "power_level": 30,
+                    "default_roles": ["viewer", "user_manager", "admin"],
+                    "icon": "📋",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
                   },
                   {
-                    "id": "6005",
-                    "permission_action": "manage",
-                    "display_name": "Manage Roles",
-                    "description": "Create and manage role definitions",
-                    "power_level": 95,
+                    "id": "perm_6",
+                    "permission_action": "role.create",
+                    "display_name": "Create Roles",
+                    "description": "Can create new roles",
+                    "power_level": 80,
+                    "default_roles": ["admin"],
+                    "icon": "🆕",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_7",
+                    "permission_action": "role.edit",
+                    "display_name": "Edit Roles",
+                    "description": "Can edit role permissions",
+                    "power_level": 85,
                     "default_roles": ["admin"],
                     "icon": "⚙️",
-                    "card_id": "user_roles",
-                    "card_name": "User Roles",
-                    "menu_name": "Users",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
                     "module_name": "User Management"
                   }
                 ]
@@ -277,150 +609,247 @@
         ]
       },
       {
-        "id": "system",
-        "key": "system",
-        "name": "System Administration",
-        "icon": "⚙️",
-        "color": "#EF4444",
-        "description": "System configuration and administration",
-        "display_order": 3,
-        "menus": [
+        "id": "mod_4",
+        "key": "user_management",
+        "name": "User Management",
+        "icon": "👥",
+        "color": "#3B82F6",
+        "description": "Manage users, roles, and permissions",
+        "display_order": 1,
+        "allowed_actions": [
           {
-            "id": "settings",
-            "key": "settings",
-            "name": "System Settings",
-            "description": "Configure system-wide settings",
-            "display_order": 1,
-            "module_id": "system",
-            "permissions": [],
-            "cards": [
-              {
-                "id": "system_config",
-                "key": "system_config",
-                "name": "System Configuration",
-                "description": "Manage system configuration",
-                "display_order": 1,
-                "menu_id": "settings",
-                "permissions": [
-                  {
-                    "id": "7001",
-                    "permission_action": "view",
-                    "display_name": "View Settings",
-                    "description": "View system configuration settings",
-                    "power_level": 20,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "👁️",
-                    "card_id": "system_config",
-                    "card_name": "System Configuration",
-                    "menu_name": "System Settings",
-                    "module_name": "System Administration"
-                  },
-                  {
-                    "id": "7002",
-                    "permission_action": "modify",
-                    "display_name": "Modify Settings",
-                    "description": "Change system configuration settings",
-                    "power_level": 100,
-                    "default_roles": ["admin"],
-                    "icon": "🔧",
-                    "card_id": "system_config",
-                    "card_name": "System Configuration",
-                    "menu_name": "System Settings",
-                    "module_name": "System Administration"
-                  }
-                ]
-              }
-            ]
+            "action_key": "module_view",
+            "display_name": "View Module",
+            "power_level": 10,
+            "category": "access"
+          },
+          {
+            "action_key": "module_configure",
+            "display_name": "Configure Module",
+            "power_level": 80,
+            "category": "administration"
           }
-        ]
-      },
-      {
-        "id": "analytics",
-        "key": "analytics",
-        "name": "Analytics & Reports",
-        "icon": "📊",
-        "color": "#8B5CF6",
-        "description": "Access analytics and reporting tools",
-        "display_order": 4,
+        ],
         "menus": [
           {
-            "id": "reports",
-            "key": "reports",
-            "name": "Reports",
-            "description": "Generate and view system reports",
+            "id": "menu_1",
+            "key": "users",
+            "name": "Users",
+            "description": "Manage system users",
             "display_order": 1,
-            "module_id": "analytics",
-            "permissions": [],
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_access",
+                "display_name": "Access Menu",
+                "power_level": 15,
+                "category": "access"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_1",
+                "permission_action": "user.view",
+                "display_name": "View Users",
+                "description": "Can view user list and details",
+                "power_level": 20,
+                "default_roles": ["viewer", "user_manager"],
+                "icon": "👀",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
+              },
+              {
+                "id": "perm_2",
+                "permission_action": "user.create",
+                "display_name": "Create Users",
+                "description": "Can create new users",
+                "power_level": 50,
+                "default_roles": ["user_manager", "admin"],
+                "icon": "➕",
+                "card_id": "card_1",
+                "card_name": "User List",
+                "menu_name": "Users",
+                "module_name": "User Management"
+              }
+            ],
             "cards": [
               {
-                "id": "analytics_dashboard",
-                "key": "analytics_dashboard",
-                "name": "Analytics Dashboard",
-                "description": "Access analytics and insights",
+                "id": "card_1",
+                "key": "user_list",
+                "name": "User List",
+                "description": "View and manage all users",
                 "display_order": 1,
-                "menu_id": "reports",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_view",
+                    "display_name": "View Card",
+                    "power_level": 15,
+                    "category": "access"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "8001",
-                    "permission_action": "view",
-                    "display_name": "View Analytics",
-                    "description": "Access analytics dashboard and reports",
-                    "power_level": 25,
-                    "default_roles": ["basic", "creator", "moderator", "admin"],
-                    "icon": "📈",
-                    "card_id": "analytics_dashboard",
-                    "card_name": "Analytics Dashboard",
-                    "menu_name": "Reports",
-                    "module_name": "Analytics & Reports"
+                    "id": "perm_1",
+                    "permission_action": "user.view",
+                    "display_name": "View Users",
+                    "description": "Can view user list and details",
+                    "power_level": 20,
+                    "default_roles": ["viewer", "user_manager"],
+                    "icon": "👀",
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
                   },
                   {
-                    "id": "8002",
-                    "permission_action": "export",
-                    "display_name": "Export Reports",
-                    "description": "Export analytics data and reports",
+                    "id": "perm_2",
+                    "permission_action": "user.create",
+                    "display_name": "Create Users",
+                    "description": "Can create new users",
+                    "power_level": 50,
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "➕",
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_3",
+                    "permission_action": "user.edit",
+                    "display_name": "Edit Users",
+                    "description": "Can edit user information",
                     "power_level": 40,
-                    "default_roles": ["creator", "moderator", "admin"],
-                    "icon": "📤",
-                    "card_id": "analytics_dashboard",
-                    "card_name": "Analytics Dashboard",
-                    "menu_name": "Reports",
-                    "module_name": "Analytics & Reports"
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "✏️",
+                    "card_id": "card_1",
+                    "card_name": "User List",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
                   }
                 ]
               },
               {
-                "id": "advanced_analytics",
-                "key": "advanced_analytics",
-                "name": "Advanced Analytics",
-                "description": "Advanced analytics and data insights",
+                "id": "card_2",
+                "key": "user_roles",
+                "name": "User Roles",
+                "description": "Manage user roles and permissions",
                 "display_order": 2,
-                "menu_id": "reports",
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_configure",
+                    "display_name": "Configure Roles",
+                    "power_level": 70,
+                    "category": "administration"
+                  }
+                ],
                 "permissions": [
                   {
-                    "id": "8003",
-                    "permission_action": "analyze",
-                    "display_name": "Advanced Analysis",
-                    "description": "Perform advanced data analysis",
+                    "id": "perm_4",
+                    "permission_action": "role.assign",
+                    "display_name": "Assign Roles",
+                    "description": "Can assign roles to users",
                     "power_level": 60,
-                    "default_roles": ["moderator", "admin"],
-                    "icon": "🔍",
-                    "card_id": "advanced_analytics",
-                    "card_name": "Advanced Analytics",
-                    "menu_name": "Reports",
-                    "module_name": "Analytics & Reports"
+                    "default_roles": ["user_manager", "admin"],
+                    "icon": "🎭",
+                    "card_id": "card_2",
+                    "card_name": "User Roles",
+                    "menu_name": "Users",
+                    "module_name": "User Management"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "menu_2",
+            "key": "roles",
+            "name": "Roles & Permissions",
+            "description": "Manage roles and permissions",
+            "display_order": 2,
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_admin",
+                "display_name": "Admin Access",
+                "power_level": 90,
+                "category": "administration"
+              }
+            ],
+            "permissions": [
+              {
+                "id": "perm_5",
+                "permission_action": "role.view",
+                "display_name": "View Roles",
+                "description": "Can view roles and permissions",
+                "power_level": 30,
+                "default_roles": ["viewer", "user_manager", "admin"],
+                "icon": "📋",
+                "card_id": "card_3",
+                "card_name": "Role Management",
+                "menu_name": "Roles & Permissions",
+                "module_name": "User Management"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_3",
+                "key": "role_management",
+                "name": "Role Management",
+                "description": "Create and manage roles",
+                "display_order": 1,
+                "menu_id": "menu_2",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_manage",
+                    "display_name": "Manage Roles",
+                    "power_level": 80,
+                    "category": "administration"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "id": "perm_5",
+                    "permission_action": "role.view",
+                    "display_name": "View Roles",
+                    "description": "Can view roles and permissions",
+                    "power_level": 30,
+                    "default_roles": ["viewer", "user_manager", "admin"],
+                    "icon": "📋",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
                   },
                   {
-                    "id": "8004",
-                    "permission_action": "configure",
-                    "display_name": "Configure Analytics",
-                    "description": "Configure analytics settings and dashboards",
-                    "power_level": 75,
+                    "id": "perm_6",
+                    "permission_action": "role.create",
+                    "display_name": "Create Roles",
+                    "description": "Can create new roles",
+                    "power_level": 80,
+                    "default_roles": ["admin"],
+                    "icon": "🆕",
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
+                  },
+                  {
+                    "id": "perm_7",
+                    "permission_action": "role.edit",
+                    "display_name": "Edit Roles",
+                    "description": "Can edit role permissions",
+                    "power_level": 85,
                     "default_roles": ["admin"],
                     "icon": "⚙️",
-                    "card_id": "advanced_analytics",
-                    "card_name": "Advanced Analytics",
-                    "menu_name": "Reports",
-                    "module_name": "Analytics & Reports"
+                    "card_id": "card_3",
+                    "card_name": "Role Management",
+                    "menu_name": "Roles & Permissions",
+                    "module_name": "User Management"
                   }
                 ]
               }
@@ -430,10 +859,10 @@
       }
     ],
     "metadata": {
-      "total_modules": 4,
-      "total_menus": 6,
-      "total_cards": 9,
-      "total_permissions": 22,
+      "total_modules": 2,
+      "total_menus": 3,
+      "total_cards": 4,
+      "total_permissions": 10,
       "last_updated": "2024-01-15T10:30:00Z"
     }
   },
@@ -473,66 +902,222 @@
       "permission_count": 19
     }
   },
-  "systemRoles": [
+  "systemRoles":[
     {
-      "name": "basic",
-      "description": "Basic user with view-only access to essential features",
-      "users": 45,
-      "permissions": 3,
-      "power_level": 10,
-      "is_system_role": true
-    },
-    {
-      "name": "creator",
-      "description": "Content creator with article creation and editing capabilities",
-      "users": 23,
-      "permissions": 7,
-      "power_level": 30,
-      "is_system_role": true
-    },
-    {
-      "name": "moderator",
-      "description": "Content moderator with management and approval tools",
-      "users": 8,
-      "permissions": 15,
-      "power_level": 70,
-      "is_system_role": true
-    },
-    {
-      "name": "admin",
-      "description": "Full system administrator with all permissions",
-      "users": 3,
-      "permissions": 19,
+      "role_key": "admin",
+      "display_name": "Administrator",
+      "description": "Full system access with all permissions",
+      "is_system_role": true,
+      "permission_count": 19,
+      "user_count": 3,
+      "organization_name": "System",
+     
+      "permissions": ["perm_1", "perm_2", "perm_3", "perm_4", "perm_5", "perm_6", "perm_7", "perm_8", "perm_9", "perm_10"],
       "power_level": 100,
-      "is_system_role": true
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "role_key": "user_manager", 
+      "display_name": "User Manager",
+      "description": "Can manage users and roles",
+      "is_system_role": true,
+      "permission_count": 7,
+      "user_count": 12,
+      "organization_name": "System",
+      
+      "permissions": ["perm_1", "perm_2", "perm_3", "perm_4", "perm_5", "perm_6", "perm_7"],
+      "power_level": 85,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "role_key": "content_editor",
+      "display_name": "Content Editor",
+      "description": "Can create and edit content",
+      "is_system_role": true, 
+      "permission_count": 5,
+      "user_count": 8,
+      "organization_name": "System",
+      
+      "permissions": ["perm_8", "perm_9", "perm_10"],
+      "power_level": 70,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "role_key": "viewer",
+      "display_name": "Viewer",
+      "description": "Can view content only",
+      "is_system_role": true,
+      "permission_count": 3,
+      "user_count": 45,
+      "organization_name": "System",
+      
+      "permissions": ["perm_1", "perm_8"],
+      "power_level": 20,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
     }
   ],
   "roleTemplates": {
-    "basic": {
-      "name": "Basic",
-      "description": "Basic user template with view-only permissions",
-      "permission_ids": ["5001", "6001", "8001"],
-      "power_level": 10
-    },
-    "content_creator": {
-      "name": "Content Creator",
-      "description": "Template for content creation roles",
-      "permission_ids": ["5001", "5002", "5003", "5007", "8001", "8002"],
-      "power_level": 30
-    },
-    "moderator": {
-      "name": "Moderator",
-      "description": "Template for content moderation roles",
-      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
-      "power_level": 70
-    },
-    "administrator": {
-      "name": "Administrator",
-      "description": "Full system administrator template",
-      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
-      "power_level": 100
-    }
+  "basic": {
+    "template_key": "basic",
+    "template_name": "Basic",
+    "description": "Basic user template with view-only permissions",
+    "permission_ids": ["5001", "6001", "8001"],
+    "power_level": 10,
+    "is_system_template": true,
+    "roles_using_count": 120,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-15T00:00:00Z"
   },
+  "content_creator": {
+    "template_key": "content_creator",
+    "template_name": "Content Creator",
+    "description": "Template for content creation roles",
+    "permission_ids": ["5001", "5002", "5003", "5007", "8001", "8002"],
+    "power_level": 30,
+    "is_system_template": true,
+    "roles_using_count": 25,
+    "created_at": "2024-01-02T00:00:00Z",
+    "updated_at": "2024-01-15T00:00:00Z"
+  },
+  "moderator": {
+    "template_key": "moderator",
+    "template_name": "Moderator",
+    "description": "Template for content moderation roles",
+    "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
+    "power_level": 70,
+    "is_system_template": true,
+    "roles_using_count": 8,
+    "created_at": "2024-01-03T00:00:00Z",
+    "updated_at": "2024-01-15T00:00:00Z"
+  },
+  "administrator": {
+    "template_key": "administrator",
+    "template_name": "Administrator",
+    "description": "Full system administrator template",
+    "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
+    "power_level": 100,
+    "is_system_template": true,
+    "roles_using_count": 3,
+    "created_at": "2024-01-04T00:00:00Z",
+    "updated_at": "2024-01-15T00:00:00Z"
+  }
+},
+  "users": [
+    {
+      "id": 1,
+      "uid": "auth0|tech001",
+      "email": "admin@techcorp.com",
+      "display_name": "Sarah Admin",
+      "organization_id": 1,
+      "email_verified": true,
+      "created_at": "2024-01-01T09:00:00Z",
+      "updated_at": "2024-01-01T09:00:00Z",
+      "roles": ["admin"]
+    },
+    {
+      "id": 2,
+      "uid": "auth0|tech002",
+      "email": "john.dev@techcorp.com",
+      "display_name": "John Developer",
+      "organization_id": 1,
+      "email_verified": true,
+      "created_at": "2024-01-01T09:05:00Z",
+      "updated_at": "2024-01-01T09:05:00Z",
+      "roles": ["creator"]
+    },
+    {
+      "id": 3,
+      "uid": "auth0|tech003",
+      "email": "lisa.design@techcorp.com",
+      "display_name": "Lisa Designer",
+      "organization_id": 1,
+      "email_verified": true,
+      "created_at": "2024-01-01T09:10:00Z",
+      "updated_at": "2024-01-01T09:10:00Z",
+      "roles": ["manager"]
+    },
+    {
+      "id": 4,
+      "uid": "auth0|tech004",
+      "email": "mike.qa@techcorp.com",
+      "display_name": "Mike Tester",
+      "organization_id": 1,
+      "email_verified": true,
+      "created_at": "2024-01-01T09:15:00Z",
+      "updated_at": "2024-01-01T09:15:00Z",
+      "roles": ["viewer"]
+    },
+    {
+      "id": 5,
+      "uid": "auth0|edu001",
+      "email": "director@edulearn.com",
+      "display_name": "Dr. Emily Director",
+      "organization_id": 2,
+      "email_verified": true,
+      "created_at": "2024-01-02T09:00:00Z",
+      "updated_at": "2024-01-02T09:00:00Z",
+      "roles": ["admin"]
+    },
+    {
+      "id": 6,
+      "uid": "auth0|edu002",
+      "email": "teacher@edulearn.com",
+      "display_name": "Mark Teacher",
+      "organization_id": 2,
+      "email_verified": true,
+      "created_at": "2024-01-02T09:05:00Z",
+      "updated_at": "2024-01-02T09:05:00Z",
+      "roles": ["teacher"]
+    },
+    {
+      "id": 7,
+      "uid": "auth0|edu003",
+      "email": "student@edulearn.com",
+      "display_name": "Alex Student",
+      "organization_id": 2,
+      "email_verified": true,
+      "created_at": "2024-01-02T09:10:00Z",
+      "updated_at": "2024-01-02T09:10:00Z",
+      "roles": ["student"]
+    },
+    {
+      "id": 8,
+      "uid": "auth0|health001",
+      "email": "admin@healthplus.com",
+      "display_name": "Dr. Sarah Admin",
+      "organization_id": 3,
+      "email_verified": true,
+      "created_at": "2024-01-03T09:00:00Z",
+      "updated_at": "2024-01-03T09:00:00Z",
+      "roles": ["admin"]
+    },
+    {
+      "id": 9,
+      "uid": "auth0|health002",
+      "email": "doctor@healthplus.com",
+      "display_name": "Dr. Mike Physician",
+      "organization_id": 3,
+      "email_verified": true,
+      "created_at": "2024-01-03T09:05:00Z",
+      "updated_at": "2024-01-03T09:05:00Z",
+      "roles": ["practitioner"]
+    },
+    {
+      "id": 10,
+      "uid": "auth0|health003",
+      "email": "nurse@healthplus.com",
+      "display_name": "Nurse Lisa",
+      "organization_id": 3,
+      "email_verified": true,
+      "created_at": "2024-01-03T09:10:00Z",
+      "updated_at": "2024-01-03T09:10:00Z",
+      "roles": ["viewer"]
+    }
+  ],
   "userRoles": {
     "1": {
       "user_id": 1,

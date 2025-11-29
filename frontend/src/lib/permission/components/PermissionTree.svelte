@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { permissionStructure, treeSelection, permissionActions } from '$lib/stores_permission';
-  import { PermissionUtils } from '$lib/utils_permission';
+  import { permissionStructure, treeSelection, permissionActions } from '$lib/permission/stores_permission';
+  import { PermissionUtils } from '$lib/permission/utils_permission';
   import { get } from 'svelte/store';
   import type { ModuleDetail, MenuDetail, CardDetail, PermissionDetail } from '$lib/types_permission';
+
+  // Export props for customization
+  export let isViewMode = false;
 
   // Reactive stores
   let searchTerm = '';
 
-  // Handle search
+  // Handle search - available in both modes
   $: {
     if (searchTerm !== $treeSelection.searchTerm) {
       permissionActions.setSearchTerm(searchTerm);
@@ -84,8 +87,35 @@
     );
   }
 
-  // Selection handlers - FIXED: string-only IDs
+  // Get module card count for badge
+  function getModuleCardCount(module: ModuleDetail): { current: number; total: number } {
+    const $permissionStructure = get(permissionStructure);
+    const $treeSelection = get(treeSelection);
+    
+    if (!$permissionStructure) return { current: 0, total: 0 };
+
+    let totalCards = 0;
+    let currentCardNumber = 0;
+
+    // Count cards in this module and find current position
+    $permissionStructure.modules.forEach((mod, modIndex) => {
+      mod.menus.forEach(menu => {
+        menu.cards.forEach(card => {
+          totalCards++;
+          // Check if this is the current module and count cards before current position
+          if (mod.id === module.id) {
+            currentCardNumber++;
+          }
+        });
+      });
+    });
+
+    return { current: currentCardNumber, total: totalCards };
+  }
+
+  // Selection handlers - disabled in view mode
   function handleModuleSelection(moduleId: string, event: Event) {
+    if (isViewMode) return;
     event.stopPropagation();
     const $permissionStructure = get(permissionStructure);
     if ($permissionStructure) {
@@ -94,10 +124,10 @@
   }
 
   function handleMenuSelection(menuId: string, event: Event) {
+    if (isViewMode) return;
     event.stopPropagation();
     const $permissionStructure = get(permissionStructure);
     if ($permissionStructure) {
-      // Find the menu in the structure
       for (const module of $permissionStructure.modules) {
         const menu = module.menus.find(m => m.id === menuId);
         if (menu) {
@@ -109,10 +139,10 @@
   }
 
   function handleCardSelection(cardId: string, event: Event) {
+    if (isViewMode) return;
     event.stopPropagation();
     const $permissionStructure = get(permissionStructure);
     if ($permissionStructure) {
-      // Find the card in the structure
       for (const module of $permissionStructure.modules) {
         for (const menu of module.menus) {
           const card = menu.cards.find(c => c.id === cardId);
@@ -126,11 +156,12 @@
   }
 
   function handlePermissionSelection(cardId: string, permissionId: string, event: Event) {
+    if (isViewMode) return;
     event.stopPropagation();
     permissionActions.togglePermissionSelection(cardId, permissionId);
   }
 
-  // Expand/collapse handlers - FIXED: string-only IDs
+  // Expand/collapse handlers - available in both modes
   function toggleModule(moduleId: string) {
     permissionActions.toggleNodeExpansion(moduleId);
   }
@@ -143,7 +174,7 @@
     permissionActions.toggleNodeExpansion(cardId);
   }
 
-  // Auto-expand when searching - FIXED: string-only IDs
+  // Auto-expand when searching - available in both modes
   $: {
     if ($treeSelection.searchTerm) {
       const $permissionStructure = get(permissionStructure);
@@ -170,443 +201,280 @@
       }
     }
   }
+
+  // Helper function for power badge classes
+  function getPowerBadgeClass(powerLevel: number): string {
+    if (powerLevel <= 25) return 'bg-green-100 text-green-800 border-green-800';
+    if (powerLevel <= 50) return 'bg-yellow-100 text-yellow-800 border-yellow-800';
+    if (powerLevel <= 75) return 'bg-orange-100 text-orange-800 border-orange-800';
+    return 'bg-red-100 text-red-800 border-red-800';
+  }
 </script>
 
-<div class="permission-tree">
-  <!-- Search Bar -->
-  <div class="search-section">
+<div class="permission-tree bg-white rounded-lg shadow-sm {isViewMode ? 'opacity-95' : ''}">
+  <!-- Search Section - Available in both modes -->
+  <div class="search-section bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
     <input
       type="text"
       bind:value={searchTerm}
       placeholder="Search modules, menus, cards, or permissions..."
-      class="search-input"
+      class="search-input w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3"
     />
-    <div class="search-actions">
-      <button on:click={() => permissionActions.expandAllNodes()} class="btn btn-sm">
+    <div class="search-actions flex flex-wrap gap-2">
+      <!-- Expand/Collapse actions - available in both modes -->
+      <button 
+        on:click={() => permissionActions.expandAllNodes()} 
+        class="btn bg-white border border-gray-300 rounded px-3 py-1 text-sm hover:bg-gray-50 transition-colors"
+      >
         Expand All
       </button>
-      <button on:click={() => permissionActions.collapseAllNodes()} class="btn btn-sm">
+      <button 
+        on:click={() => permissionActions.collapseAllNodes()} 
+        class="btn bg-white border border-gray-300 rounded px-3 py-1 text-sm hover:bg-gray-50 transition-colors"
+      >
         Collapse All
       </button>
-      <button on:click={() => permissionActions.selectAllPermissions()} class="btn btn-sm">
-        Select All
-      </button>
-      <button on:click={() => permissionActions.clearAllPermissions()} class="btn btn-sm">
-        Clear All
-      </button>
+      
+      <!-- Selection actions - only in edit mode -->
+      {#if !isViewMode}
+        <button 
+          on:click={() => permissionActions.selectAllPermissions()} 
+          class="btn bg-white border border-gray-300 rounded px-3 py-1 text-sm hover:bg-gray-50 transition-colors"
+        >
+          Select All
+        </button>
+        <button 
+          on:click={() => permissionActions.clearAllPermissions()} 
+          class="btn bg-white border border-gray-300 rounded px-3 py-1 text-sm hover:bg-gray-50 transition-colors"
+        >
+          Clear All
+        </button>
+      {/if}
     </div>
   </div>
 
   <!-- Tree Structure -->
-  <div class="tree-container">
+  <div class="tree-container border border-gray-200 rounded-lg bg-white p-4">
     {#if $permissionStructure}
-      {#each $permissionStructure.modules as module (module.id)}
-        {#if moduleHasMatches(module, $treeSelection.searchTerm)}
-          <!-- MODULE CONTAINER -->
-          <div class="module-container tree-node-container">
-            <div class="node-header module-header" on:click={() => toggleModule(module.id)}>
-              <input
-                type="checkbox"
-                checked={PermissionUtils.isModuleFullySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                indeterminate={PermissionUtils.isModulePartiallySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isModuleFullySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                on:click={handleModuleSelection.bind(null, module.id)}
-                on:change={() => {}} <!-- Prevent default behavior -->
-              />
+      <!-- View Mode Banner -->
+      {#if isViewMode}
+        <div class="view-mode-banner bg-blue-50 border border-blue-200 rounded-md p-3 mb-4 text-center">
+          <p class="text-blue-700 font-medium text-sm">
+            👁️ View Mode - Permissions are read-only
+          </p>
+        </div>
+      {/if}
+
+      <!-- Grid container for responsive layout -->
+      <div class="modules-grid grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 items-start">
+        {#each $permissionStructure.modules as module (module.id)}
+          {#if moduleHasMatches(module, $treeSelection.searchTerm)}
+            <!-- MODULE CONTAINER with Count Badge -->
+            <div class="module-wrapper relative">
+              <!-- Count Badge - Positioned outside at top-left corner -->
+              <div class="count-badge absolute -top-2 -left-2 bg-blue-600 text-white rounded-full w-12 h-6 flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white z-10">
+                {getModuleCardCount(module).current}/{getModuleCardCount(module).total}
+              </div>
               
-              <span class="icon">{PermissionUtils.getModuleIcon(module)}</span>
-              <span class="name">{module.name}</span>
-              <span class="description"> - {module.description}</span>
-              
-              <span class="expand-icon">
-                {$treeSelection.expandedNodes.has(module.id) ? '▼' : '▶'}
-              </span>
-            </div>
+              <div class="module-container bg-blue-50 border-2 border-blue-500 rounded-lg shadow-sm {isViewMode ? '' : 'hover:shadow-md transition-all duration-300 hover:-translate-y-1'} h-fit ml-2 mt-2">
+                <div 
+                  class="node-header module-header bg-blue-600 text-white px-4 py-3 rounded-t-lg cursor-pointer select-none {isViewMode ? 'hover:bg-blue-600' : 'hover:bg-blue-700'} transition-colors flex items-center gap-3"
+                  on:click={() => toggleModule(module.id)}
+                >
+                  <!-- Checkbox - Disabled in view mode -->
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 {isViewMode ? 'cursor-default opacity-70' : 'cursor-pointer'}"
+                    checked={PermissionUtils.isModuleFullySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                    indeterminate={PermissionUtils.isModulePartiallySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isModuleFullySelected(module.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                    on:click={handleModuleSelection.bind(null, module.id)}
+                    on:change={() => {}}
+                    disabled={isViewMode}
+                  />
+                  
+                  <span class="icon text-lg">{PermissionUtils.getModuleIcon(module)}</span>
+                  <span class="name font-semibold text-sm">{module.name}</span>
+                  <span class="description text-blue-100 text-sm flex-1"> - {module.description}</span>
+                  
+                  <span class="expand-icon text-xs opacity-90">
+                    {$treeSelection.expandedNodes.has(module.id) ? '▼' : '▶'}
+                  </span>
+                </div>
 
-            {#if $treeSelection.expandedNodes.has(module.id)}
-              <div class="module-children">
-                {#each module.menus as menu (menu.id)}
-                  {#if menuHasMatches(menu, $treeSelection.searchTerm)}
-                    <!-- MENU CONTAINER -->
-                    <div class="menu-container tree-node-container">
-                      <div class="node-header menu-header" on:click={() => toggleMenu(menu.id)}>
-                        <input
-                          type="checkbox"
-                          checked={PermissionUtils.isMenuFullySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                          indeterminate={PermissionUtils.isMenuPartiallySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isMenuFullySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                          on:click={handleMenuSelection.bind(null, menu.id)}
-                          on:change={() => {}} <!-- Prevent default behavior -->
-                        />
-                        
-                        <span class="icon">{PermissionUtils.getMenuIcon(menu)}</span>
-                        <span class="name">{menu.name}</span>
-                        <span class="description"> - {menu.description}</span>
-                        
-                        <span class="expand-icon">
-                          {$treeSelection.expandedNodes.has(menu.id) ? '▼' : '▶'}
-                        </span>
-                      </div>
+                {#if $treeSelection.expandedNodes.has(module.id)}
+                  <div class="module-children p-4 bg-white/50 rounded-b-lg space-y-3">
+                    {#each module.menus as menu (menu.id)}
+                      {#if menuHasMatches(menu, $treeSelection.searchTerm)}
+                        <!-- MENU CONTAINER -->
+                        <div class="menu-container bg-green-50 border-2 border-green-500 rounded-lg shadow-sm {isViewMode ? '' : 'transition-all duration-200'}">
+                          <div 
+                            class="node-header menu-header bg-green-600 text-white px-4 py-3 rounded-t-lg cursor-pointer select-none {isViewMode ? 'hover:bg-green-600' : 'hover:bg-green-700'} transition-colors flex items-center gap-3"
+                            on:click={() => toggleMenu(menu.id)}
+                          >
+                            <!-- Checkbox - Disabled in view mode -->
+                            <input
+                              type="checkbox"
+                              class="h-4 w-4 {isViewMode ? 'cursor-default opacity-70' : 'cursor-pointer'}"
+                              checked={PermissionUtils.isMenuFullySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                              indeterminate={PermissionUtils.isMenuPartiallySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isMenuFullySelected(menu.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                              on:click={handleMenuSelection.bind(null, menu.id)}
+                              on:change={() => {}}
+                              disabled={isViewMode}
+                            />
+                            
+                            <span class="icon text-lg">{PermissionUtils.getMenuIcon(menu)}</span>
+                            <span class="name font-semibold text-sm">{menu.name}</span>
+                            <span class="description text-green-100 text-sm flex-1 min-w-0"> - {menu.description}</span>
+                            
+                            <span class="expand-icon text-xs opacity-90">
+                              {$treeSelection.expandedNodes.has(menu.id) ? '▼' : '▶'}
+                            </span>
+                          </div>
 
-                      {#if $treeSelection.expandedNodes.has(menu.id)}
-                        <div class="menu-children">
-                          {#each menu.cards as card (card.id)}
-                            {#if cardHasMatches(card, $treeSelection.searchTerm)}
-                              <!-- CARD CONTAINER -->
-                              <div class="card-container tree-node-container">
-                                <div class="node-header card-header" on:click={() => toggleCard(card.id)}>
-                                  <input
-                                    type="checkbox"
-                                    checked={PermissionUtils.isCardFullySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                                    indeterminate={PermissionUtils.isCardPartiallySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isCardFullySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure)}
-                                    on:click={handleCardSelection.bind(null, card.id)}
-                                    on:change={() => {}} <!-- Prevent default behavior -->
-                                  />
-                                  
-                                  <span class="icon">{PermissionUtils.getCardIcon(card)}</span>
-                                  <span class="name">{card.name}</span>
-                                  <span class="description"> - {card.description}</span>
-                                  
-                                  <span class="expand-icon">
-                                    {$treeSelection.expandedNodes.has(card.id) ? '▼' : '▶'}
-                                  </span>
-                                </div>
+                          {#if $treeSelection.expandedNodes.has(menu.id)}
+                            <div class="menu-children p-3 bg-white/60 rounded-b-lg space-y-2">
+                              {#each menu.cards as card (card.id)}
+                                {#if cardHasMatches(card, $treeSelection.searchTerm)}
+                                  <!-- CARD CONTAINER -->
+                                  <div class="card-container bg-yellow-50 border-2 border-yellow-500 rounded-lg shadow-sm {isViewMode ? '' : 'transition-all duration-200'}">
+                                    <div 
+                                      class="node-header card-header bg-yellow-500 text-gray-900 px-4 py-2 rounded-t-lg cursor-pointer select-none {isViewMode ? 'hover:bg-yellow-500' : 'hover:bg-yellow-600'} transition-colors flex items-center gap-3"
+                                      on:click={() => toggleCard(card.id)}
+                                    >
+                                      <!-- Checkbox - Disabled in view mode -->
+                                      <input
+                                        type="checkbox"
+                                        class="h-4 w-4 {isViewMode ? 'cursor-default opacity-70' : 'cursor-pointer'}"
+                                        checked={PermissionUtils.isCardFullySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                                        indeterminate={PermissionUtils.isCardPartiallySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure) && !PermissionUtils.isCardFullySelected(card.id, $treeSelection.selectedPermissions, $permissionStructure)}
+                                        on:click={handleCardSelection.bind(null, card.id)}
+                                        on:change={() => {}}
+                                        disabled={isViewMode}
+                                      />
+                                      
+                                      <span class="icon text-lg">{PermissionUtils.getCardIcon(card)}</span>
+                                      <span class="name font-semibold text-sm">{card.name}</span>
+                                      <span class="description text-gray-700 text-sm flex-1 min-w-0"> - {card.description}</span>
+                                      
+                                      <span class="expand-icon text-xs opacity-90">
+                                        {$treeSelection.expandedNodes.has(card.id) ? '▼' : '▶'}
+                                      </span>
+                                    </div>
 
-                                {#if $treeSelection.expandedNodes.has(card.id)}
-                                  <div class="card-children permissions-container">
-                                    {#each card.permissions as permission (permission.id)}
-                                      {#if permissionHasMatches(permission, $treeSelection.searchTerm)}
-                                        <div class="permission-node">
-                                          <div class="node-header permission-header">
-                                            <input
-                                              type="checkbox"
-                                              checked={PermissionUtils.getCardPermissions(card.id, $treeSelection.selectedPermissions).has(permission.id)}
-                                              on:click={handlePermissionSelection.bind(null, card.id, permission.id)}
-                                              on:change={() => {}} <!-- Prevent default behavior -->
-                                            />
-                                            
-                                            <span class="icon">{PermissionUtils.getPermissionIcon(permission)}</span>
-                                            <span class="name">{permission.display_name}</span>
-                                            <span class="description"> - {permission.description}</span>
-                                            
-                                            <!-- Power Level Badge -->
-                                            <span 
-                                              class="power-badge {PermissionUtils.getPowerLevelRange(permission.power_level).toLowerCase()}"
-                                              title="Power Level: {permission.power_level}"
-                                            >
-                                              {PermissionUtils.getPowerLevelIcon(permission.power_level)}
-                                              {permission.power_level}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      {/if}
-                                    {/each}
+                                    {#if $treeSelection.expandedNodes.has(card.id)}
+                                      <div class="card-children permissions-container bg-white border border-gray-400 rounded-b-lg p-2 space-y-1">
+                                        {#each card.permissions as permission (permission.id)}
+                                          {#if permissionHasMatches(permission, $treeSelection.searchTerm)}
+                                            <div class="permission-node bg-white border-b border-gray-100 last:border-b-0">
+                                              <div class="node-header permission-header px-3 py-2 flex items-center gap-3 {isViewMode ? '' : 'hover:bg-gray-50'} transition-colors">
+                                                <!-- Checkbox - Disabled in view mode -->
+                                                <input
+                                                  type="checkbox"
+                                                  class="h-4 w-4 {isViewMode ? 'cursor-default opacity-70' : 'cursor-pointer'}"
+                                                  checked={PermissionUtils.getCardPermissions(card.id, $treeSelection.selectedPermissions).has(permission.id)}
+                                                  on:click={handlePermissionSelection.bind(null, card.id, permission.id)}
+                                                  on:change={() => {}}
+                                                  disabled={isViewMode}
+                                                />
+                                                
+                                                <span class="icon text-base">{PermissionUtils.getPermissionIcon(permission)}</span>
+                                                <span class="name font-medium text-sm">{permission.display_name}</span>
+                                                <span class="description text-gray-600 text-sm flex-1 min-w-0"> - {permission.description}</span>
+                                                
+                                                <!-- Power Level Badge -->
+                                                <span 
+                                                  class="power-badge px-2 py-1 rounded-full text-xs font-semibold border whitespace-nowrap {getPowerBadgeClass(permission.power_level)}"
+                                                  title="Power Level: {permission.power_level}"
+                                                >
+                                                  {PermissionUtils.getPowerLevelIcon(permission.power_level)}
+                                                  {permission.power_level}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          {/if}
+                                        {/each}
+                                      </div>
+                                    {/if}
                                   </div>
                                 {/if}
-                              </div>
-                            {/if}
-                          {/each}
+                              {/each}
+                            </div>
+                          {/if}
                         </div>
                       {/if}
-                    </div>
-                  {/if}
-                {/each}
+                    {/each}
+                  </div>
+                {/if}
               </div>
-            {/if}
-          </div>
-        {/if}
-      {/each}
+            </div>
+          {/if}
+        {/each}
+      </div>
     {:else}
-      <div class="loading-message">Loading permission structure...</div>
+      <div class="loading-message text-gray-500 text-center py-5 italic">
+        Loading permission structure...
+      </div>
     {/if}
   </div>
 </div>
 
 <style>
-  .permission-tree {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  /* Search Section */
-  .search-section {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
-  }
-
-  .search-input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    font-size: 14px;
-  }
-
-  .search-input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-  }
-
-  .search-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    padding: 6px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: white;
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  .btn:hover {
-    background: #f8f9fa;
-  }
-
-  .btn-sm {
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  /* Tree Container */
-  .tree-container {
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    background: white;
-    padding: 8px;
-  }
-
-  /* CONTAINER STYLES - FIXED */
-  .tree-node-container {
-    border-radius: 6px;
-    margin-bottom: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .module-container {
-    border: 2px solid #007bff !important;
-    background: #f0f8ff;
-    margin: 12px 0;
-  }
-
-  .menu-container {
-    border: 2px solid #28a745 !important;
-    background: #f0fff0;
-    margin: 8px 0;
-  }
-
-  .card-container {
-    border: 2px solid #ffc107 !important;
-    background: #fffbf0;
-    margin: 6px 0;
-  }
-
-  .permissions-container {
-    border: 1px solid #6c757d !important;
-    background: #ffffff;
-    margin: 4px 0;
-    border-radius: 4px;
-  }
-
-  /* Children containers - FIXED */
-  .module-children {
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.5);
-  }
-
-  .menu-children {
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.6);
-  }
-
-  .card-children {
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.7);
-  }
-
-  /* Node Headers */
-  .node-header {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.15s ease;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  }
-
-  .node-header:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-
-  .module-header {
-    background: #007bff;
-    color: white;
-    font-weight: 600;
-    border-radius: 6px 6px 0 0;
-  }
-
-  .menu-header {
-    background: #28a745;
-    color: white;
-    font-weight: 500;
-    border-radius: 4px 4px 0 0;
-  }
-
-  .menu-header input[type="checkbox"] {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  z-index: 10;
-  position: relative;
-}
-
-  .card-header {
-    background: #ffc107;
-    color: #212529;
-    font-weight: 500;
-    border-radius: 4px 4px 0 0;
-  }
-
-  .permission-header {
-    background: #ffffff;
-    cursor: default;
-    border-bottom: 1px solid #f8f9fa;
-    padding: 8px 16px;
-  }
-
-  .permission-header:last-child {
-    border-bottom: none;
-  }
-
-  /* Checkboxes */
-  .node-header input[type="checkbox"] {
-    margin-right: 12px;
-    cursor: pointer;
-    transform: scale(1.2);
-  }
-
-  /* Icons and Text */
-  .icon {
-    margin-right: 12px;
-    font-size: 16px;
-  }
-
-  .name {
-    font-weight: 600;
-    margin-right: 8px;
-    font-size: 15px;
-  }
-
-  .description {
-    font-size: 14px;
-    flex: 1;
-    opacity: 0.9;
-  }
-
-  .module-header .description,
-  .menu-header .description {
-    color: rgba(255, 255, 255, 0.95);
-  }
-
-  .expand-icon {
-    margin-left: auto;
-    font-size: 12px;
-    min-width: 16px;
-    opacity: 0.9;
-  }
-
-  /* Power Badges */
-  .power-badge {
-    margin-left: 12px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    border: 1px solid currentColor;
-  }
-
-  .power-badge.low {
-    background-color: #d4edda;
-    color: #155724;
-    border-color: #155724;
-  }
-
-  .power-badge.medium {
-    background-color: #fff3cd;
-    color: #856404;
-    border-color: #856404;
-  }
-
-  .power-badge.high {
-    background-color: #ffeaa7;
-    color: #e17055;
-    border-color: #e17055;
-  }
-
-  .power-badge.critical {
-    background-color: #f8d7da;
-    color: #721c24;
-    border-color: #721c24;
-  }
-
-  /* Loading State */
-  .loading-message {
-    padding: 20px;
-    text-align: center;
-    color: #6c757d;
-    font-style: italic;
-  }
-
-  /* Indeterminate checkbox styling */
+  /* Custom styles for indeterminate checkboxes */
   input[type="checkbox"]:indeterminate {
     background-color: #007bff;
     border-color: #007bff;
   }
 
-  /* Ensure borders are visible */
-  .module-container,
-  .menu-container,
-  .card-container,
-  .permissions-container {
-    border-style: solid !important;
-    border-width: 2px !important;
+  /* Focus states for accessibility */
+  .node-header:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
   }
 
-  /* Responsive Design */
-  @media (max-width: 768px) {
-    .node-header {
-      padding: 10px 12px;
-    }
-    
-    .search-actions {
-      flex-direction: column;
-    }
-    
-    .btn {
-      width: 100%;
-    }
-    
-    .module-container,
-    .menu-container,
-    .card-container {
-      margin: 8px 0;
-    }
-    
-    .name {
-      font-size: 14px;
-    }
-    
-    .description {
-      font-size: 13px;
-    }
+  input[type="checkbox"]:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+  }
+
+  /* Smooth animations */
+  .module-container,
+  .menu-container,
+  .card-container {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* View mode specific styles */
+  .view-mode-banner {
+    border-left: 4px solid #3b82f6;
+  }
+
+  /* Disabled checkbox styling */
+  input[type="checkbox"]:disabled {
+    cursor: default;
+  }
+
+  input[type="checkbox"]:disabled:checked {
+    background-color: #6b7280;
+    border-color: #6b7280;
+  }
+
+  input[type="checkbox"]:disabled:indeterminate {
+    background-color: #6b7280;
+    border-color: #6b7280;
+  }
+
+  /* Count badge styling */
+  .count-badge {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+    min-width: 3rem;
+  }
+
+  /* Ensure proper z-index for badges */
+  .module-wrapper {
+    z-index: 1;
+  }
+
+  .count-badge {
+    z-index: 20;
   }
 </style>

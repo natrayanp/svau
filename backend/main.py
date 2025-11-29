@@ -1,20 +1,16 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Query, Path
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import List, Optional
 import logging
 import os
 from dotenv import load_dotenv
 
-# UPDATED IMPORTS - Add role_routes
+# Import routes
 from routes.auth import auth_routes, user_routes, permission_routes, role_routes
+from routes.system import db_analytics_routes
 
-from models import (
-    Flashcard, FlashcardCreate, FlashcardUpdate, Deck, DeckCreate, DeckUpdate,
-    StudySessionCreate, StudySessionResponse, HealthCheckResponse,
-    SuccessResponse, ErrorResponse, Difficulty
-)
-from backend.utils.database import Database
+from models import HealthCheckResponse, ErrorResponse
+from backend.utils.database.database import DatabaseManager  # Import the actual class
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +32,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 if ENVIRONMENT == "development":
     allow_origins = [
-       "http://localhost:4173",
+        "http://localhost:4173",
         "http://127.0.0.1:4173", 
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -59,14 +55,6 @@ app.add_middleware(
     max_age=600
 )
 
-# Database dependency
-def get_db():
-    db = Database()
-    try:
-        yield db
-    finally:
-        pass
-
 # Custom exception handler
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
@@ -78,7 +66,7 @@ async def http_exception_handler(request, exc):
         ).model_dump()
     )
 
-# Health check endpoints
+# Health check endpoint
 @app.get("/", response_model=HealthCheckResponse, tags=["Health"])
 async def root():
     return HealthCheckResponse(
@@ -86,28 +74,32 @@ async def root():
         database="PostgreSQL"
     )
 
+# Health check with database connection test
 @app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
-async def health_check(db: Database = Depends(get_db)):
+async def health_check():
     try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT 1")
+        # Use DatabaseManager directly - no dependency injection needed here
+        db = DatabaseManager()
+        is_healthy = db.health_check()
+        
         return HealthCheckResponse(
-            status="healthy",
-            database="connected"
+            status="healthy" if is_healthy else "unhealthy",
+            database="connected" if is_healthy else "disconnected"
         )
     except Exception as e:
-        logger.error(f"Database health check failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database connection failed: {str(e)}"
+        logger.error(f"Health check failed: {str(e)}")
+        return HealthCheckResponse(
+            status="unhealthy",
+            database="connection failed"
         )
 
-# UPDATED: Mount all auth routes including the new role_routes
+# Mount all routes
 app.include_router(auth_routes.router)
 app.include_router(user_routes.router)  
 app.include_router(permission_routes.router)
-app.include_router(role_routes.router)  # NEW: Add role management routes
+app.include_router(role_routes.router)
+app.include_router(db_analytics_routes)
+
 
 if __name__ == "__main__":
     import uvicorn

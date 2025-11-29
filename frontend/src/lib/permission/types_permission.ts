@@ -2,43 +2,54 @@ import type { ApiUser } from '$lib/types';
 
 // ==================== CORE DATABASE TYPES ====================
 
+// Add ActionDetail interface
+export interface ActionDetail {
+  action_key: string;
+  display_name: string;
+  power_level: number;
+  category?: string;
+}
+
+// Update existing interfaces to include allowed_actions
 export interface PermissionDetail {
-  id: string;  // ← CHANGED TO STRING
+  id: string;
   permission_action: string;
   display_name: string;
   description: string;
   power_level: number;
-  default_roles: string[] | string;
+  default_roles?: string[]; // Fixed in next step
   icon?: string;
-  card_id?: string;    // ← CHANGED TO STRING
+  card_id?: string;
   card_name?: string;
   menu_name?: string;
   module_name?: string;
 }
 
 export interface CardDetail {
-  id: string;  // ← CHANGED TO STRING ONLY
+  id: string;
   key: string;
   name: string;
   description: string;
   display_order: number;
-  menu_id: string;  // ← CHANGED TO STRING
+  menu_id: string;
   permissions: PermissionDetail[];
+  allowed_actions?: ActionDetail[]; // ← ADD THIS
 }
 
 export interface MenuDetail {
-  id: string;  // ← CHANGED TO STRING ONLY
+  id: string;
   key: string;
   name: string;
   description: string;
   display_order: number;
-  module_id: string;  // ← CHANGED TO STRING
+  module_id: string;
   permissions: PermissionDetail[];
   cards: CardDetail[];
+  allowed_actions?: ActionDetail[]; // ← ADD THIS
 }
 
 export interface ModuleDetail {
-  id: string;  // ← CHANGED TO STRING ONLY
+  id: string;
   key: string;
   name: string;
   icon: string;
@@ -46,6 +57,7 @@ export interface ModuleDetail {
   description: string;
   display_order: number;
   menus: MenuDetail[];
+  allowed_actions?: ActionDetail[]; // ← ADD THIS
 }
 
 export interface PermissionStructure {
@@ -173,11 +185,18 @@ export interface AllowedPermissionsResponse {
 }
 
 export interface RoleTemplate {
-  name: string;
+  template_key: string;
+  template_name: string;
   description: string;
-  permission_ids: string[];  // ← CHANGED TO STRING
+  permission_ids: string[];
   power_level: number;
+  is_system_template: boolean;
+  permission_details?: Record<string, any>[];
+  roles_using_count: number;
+  created_at: string; // ISO datetime
+  updated_at: string; // ISO datetime
 }
+
 
 export interface RolePermissionsResponse {
   role: string;
@@ -185,18 +204,39 @@ export interface RolePermissionsResponse {
   permission_count: number;
 }
 
+
+
 export interface SystemRole {
-  name: string;
+  role_key: string;
+  display_name: string;
   description: string;
-  users: number;
-  permissions: number;
-  power_level: number;
   is_system_role: boolean;
+  permission_count: number;
+  user_count: number;
+  organization_name: string;
+  // ADD THESE FOR LOCAL OPERATIONS:
+  permissions?: string[]; // permission IDs for this role
+  power_level?: number;   // calculated power level
+  created_at?: string;    // ISO timestamp
+  updated_at?: string;    // ISO timestamp
 }
+
 
 export interface SystemRolesResponse {
   roles: SystemRole[];
-  total_roles: number;
+  summary: Record<string, any>;
+}
+
+export interface User {
+  id: number;                // Primary key
+  uid: string;               // Unique external identifier
+  email: string;             // User email
+  display_name?: string;     // Optional display name
+  organization_id: number;   // Organization foreign key
+  email_verified: boolean;   // Whether email is verified
+  created_at: string;        // ISO timestamp
+  updated_at: string;        // ISO timestamp
+  roles: string[];           // List of role keys assigned to the user
 }
 
 export interface QuickAction {
@@ -437,6 +477,7 @@ export interface PermissionCache {
 
 export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> {}
 export interface SystemRolesApiResponse extends ApiResponse<SystemRolesResponse> {}
+export interface UsersApiResponse extends ApiResponse<User[]> {}
 export interface RoleTemplatesResponse extends ApiResponse<{ [key: string]: RoleTemplate }> {}
 export interface RolePermissionsApiResponse extends ApiResponse<RolePermissionsResponse> {}
 export interface UserPermissionsApiResponse extends ApiResponse<UserPermissionsResponse> {}

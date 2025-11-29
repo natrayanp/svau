@@ -15,10 +15,10 @@ import MOCK_DATA from './Mockdata/permissions_mockdata.json';
 const ROLE_BASE_URL = '/auth-api/roles';
 
 class RoleApi extends BaseApi {
-  constructor(useMock: boolean = false) {
-    super(ROLE_BASE_URL, useMock);
+  constructor() {
+    super(ROLE_BASE_URL);
     
-    if (useMock) {
+    if (this.useMock) {
       this.setMockResponses({
         '/user/{id}': (params: any) => MOCK_DATA.userRoles?.[params.id] || { 
           user_id: params.id, 
@@ -112,10 +112,10 @@ class RoleApi extends BaseApi {
   }
 
   // Statistics
-  async getSystemStats(): Promise<RoleStatistics> {
-    const response = await this.request<RoleStatisticsApiResponse>('/stats');
-    return this.handleResponse(response);
-  }
+async getSystemStats(): Promise<RoleStatistics> {
+  const response = await this.request<{ success: boolean; message: string; data: RoleStatistics }>('/stats');
+  return this.handleResponse(response);
+}
 
   // Bulk Operations
   async bulkUpdateUserRoles(updates: Array<{
@@ -141,4 +141,4 @@ class RoleApi extends BaseApi {
   }
 }
 
-export const roleApi = new RoleApi(true);
+export const roleApi = new RoleApi();

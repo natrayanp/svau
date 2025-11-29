@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from backend.utils.database import get_db
 from backend.utils.auth.middleware import get_current_user
 from backend.utils.auth.permissions import (
@@ -15,7 +17,12 @@ from models.auth_models import (
     PermissionValidationResponse, AllowedPermissionsResponse,
     PowerAnalysisResponse, RoleTemplate
 )
-from queries.query_manager import auth_query
+from models.permission_models import (PermissionStructure,UserModel)
+from models.api_models import (ApiResponse)
+
+from queries.query_manager import permission_query
+
+
 
 router = APIRouter(prefix="/auth-api/permissions", tags=["permissions"])
 
@@ -31,20 +38,109 @@ def error_response(message: str) -> Dict[str, Any]:
     """Consistent error response structure"""
     return {"success": False, "message": message}
 
-# ============ PERMISSION STRUCTURE ENDPOINTS ============
-@router.get("/structure")
+# # ============ PERMISSION STRUCTURE ENDPOINTS ============
+@router.get("/structure", response_model=ApiResponse[PermissionStructure])
 async def get_permission_structure(
     current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
     db = Depends(get_db)
 ):
-    """Get complete permission structure from database - returns string IDs"""
+    """
+    Get complete permission structure as JSON from database
+    
+    Returns:
+        ApiResponse[PermissionStructure]: Standardized response with permission structure
+    """
     try:
-        perm_system = ExplicitPermissionSystem()
-        structure = perm_system.get_permission_structure(db)
+        # Single query returns complete hierarchical JSON
+        result = db.execute_single(
+            permission_query("PERMISSION_STRUCTURE_QUERY"), 
+            fetch=True
+        )
         
-        return success_response(structure, "Permission structure loaded successfully")
+        if not result or not result.get('permission_structure'):
+            return not_found_error(
+                resource="Permission structure",
+                message="No permission structure found in database"
+            )
+        
+        structure_data = result['permission_structure']
+        
+        # Validate with Pydantic model
+        validated_structure = PermissionStructure(**structure_data)
+        
+        return success_response(
+            data=validated_structure,
+            message="Permission structure loaded successfully"
+        )
+            
     except Exception as e:
-        return error_response(f"Failed to load permission structure: {str(e)}")
+        logger.error(f"Failed to load permission structure: {str(e)}")
+        return error_response(
+            message="Failed to load permission structure",
+            error_code="LOAD_ERROR",
+            error_details={"internal_error": str(e)},
+        )
+
+
+
+# ============ ORGANIZATION USERS OVERVIEW give all the users in the organisation ============
+@router.get("/users", response_model=ApiResponse[List[UserModel]])
+async def get_organization_users(
+    current_user: User = Depends(get_current_user),  # 👈 GET CURRENT USER
+    db = Depends(get_db)
+):
+    """Get active users for current user's organization with their roles"""
+    try:
+        # Pass current user ID to the query
+        result = db.execute_single(
+            permission_query("ORGANIZATION_USERS_QUERY"),
+            (current_user.id,),  # 👈 PASS USER ID AS PARAMETER
+            fetch=True
+        )
+        
+        if result and result['users_data']:
+            return success_response(
+                result['users_data'],
+                "Organization users loaded successfully"
+            )
+        else:
+            return error_response("No users found for your organization")
+            
+    except Exception as e:
+        return error_response(f"Failed to load users: {str(e)}")
+
+
+
+# ============ SYSTEM ROLES OVERVIEW ============
+@router.get("/roles")
+async def get_organization_roles(
+    current_user: User = Depends(get_current_user),  # 👈 GET CURRENT USER
+    db = Depends(get_db)
+):
+    """Get roles for current user's organization with package filtering"""
+    try:
+        # Pass current user ID to the query
+        result = db.execute_single(
+            permission_query("ORGANIZATION_ROLES_QUERY"),
+            (current_user.id,),  # 👈 PASS USER ID AS PARAMETER
+            fetch=True
+        )
+        
+        if result and result['roles_data']:
+            return success_response(
+                result['roles_data'],
+                "Organization roles loaded successfully"
+            )
+        else:
+            return error_response("No roles found for your organization")
+            
+    except Exception as e:
+        return error_response(f"Failed to load roles: {str(e)}")
+    
+
+
+
+
 
 # ============ ROLE PERMISSION MANAGEMENT ============
 @router.get("/roles/{role_name}")
@@ -479,33 +575,7 @@ async def check_power_level(
     except Exception as e:
         return error_response(f"Failed to check power level: {str(e)}")
 
-# ============ SYSTEM ROLES OVERVIEW ============
-@router.get("/roles")
-async def get_all_roles(
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
-):
-    """Get all available roles with their permission counts - returns string IDs"""
-    try:
-        perm_system = ExplicitPermissionSystem()
-        
-        roles = ["basic", "creator", "moderator", "admin"]
-        role_data = []
-        
-        for role in roles:
-            permission_ids = perm_system.db_system.get_role_permissions_from_db(role, db)  # String IDs
-            role_data.append({
-                "name": role,
-                "permission_count": len(permission_ids),
-                "permission_ids": list(permission_ids)  # String IDs
-            })
-        
-        return success_response(
-            {"roles": role_data, "total_roles": len(role_data)},
-            "System roles loaded successfully"
-        )
-    except Exception as e:
-        return error_response(f"Failed to get system roles: {str(e)}")
+
 
 @router.get("/user/{user_id}/details")
 async def get_user_permissions_with_details(
@@ -538,70 +608,97 @@ async def get_user_permissions_with_details(
 # ============ ROLE TEMPLATES ============
 @router.get("/templates")
 async def get_role_templates(
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW))
+    template_keys: Optional[str] = None,
+    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
+    db = Depends(get_db)
 ):
-    """Get all available role templates - returns string IDs"""
+    """Get role templates - all, single, or multiple templates with organization filtering"""
     try:
-        # Convert template permission IDs to string for frontend
-        templates_with_string_ids = {}
-        for key, template in ROLE_TEMPLATES.items():
-            templates_with_string_ids[key] = {
-                **template,
-                "permission_ids": [str(pid) for pid in template["permission_ids"]]  # Convert to string
-            }
+        # Parse template_keys parameter if provided
+        template_list = None
+        if template_keys:
+            template_list = [key.strip() for key in template_keys.split(",") if key.strip()]
         
-        return success_response(templates_with_string_ids, "Role templates loaded successfully")
+        # Determine which query to use
+        if template_list is None:
+            # Get ALL templates
+            result = db.execute_single(
+                permission_query("GET_ALL_ROLE_TEMPLATES"),
+                (current_user.id,),  # Pass current user ID for organization context
+                fetch=True
+            )
+            message = "All role templates loaded successfully"
+            
+        elif len(template_list) == 1:
+            # Get SINGLE template
+            result = db.execute_single(
+                permission_query("GET_SINGLE_ROLE_TEMPLATE"),
+                (current_user.id, template_list[0]),  # user_id + specific template
+                fetch=True
+            )
+            message = f"Template '{template_list[0]}' loaded successfully"
+            
+        else:
+            # Get MULTIPLE templates
+            result = db.execute_single(
+                permission_query("GET_MULTIPLE_ROLE_TEMPLATES"),
+                (current_user.id, template_list),  # user_id + array of templates
+                fetch=True
+            )
+            message = f"{len(template_list)} templates loaded successfully"
+        
+        if result:
+            return success_response(result, message)
+        else:
+            return success_response(
+                {"templates": [], "summary": {"total_templates": 0}},
+                "No templates found for your organization"
+            )
+            
     except Exception as e:
+        logger.error(f"Failed to load role templates: {str(e)}")
         return error_response(f"Failed to load role templates: {str(e)}")
 
-@router.get("/templates/{template_name}")
-async def get_role_template(
-    template_name: str,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW))
+
+@router.get("/templates/{template_key}")
+async def get_role_template_by_key(
+    template_key: str,
+    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
+    db = Depends(get_db)
 ):
-    """Get a specific role template - returns string IDs"""
+    """Get specific role template details by template key"""
     try:
-        template = ROLE_TEMPLATES.get(template_name)
-        if not template:
-            return error_response(f"Template '{template_name}' not found")
+        # Get template with organization context and package filtering
+        template_result = db.execute_single(
+            permission_query("GET_SINGLE_ROLE_TEMPLATE"),
+            (current_user.id, template_key),  # user_id + template_key
+            fetch=True
+        )
         
-        # Convert permission IDs to string for frontend
-        template_with_string_ids = {
-            **template,
-            "permission_ids": [str(pid) for pid in template["permission_ids"]]  # Convert to string
+        if not template_result or not template_result.get('template'):
+            return error_response(f"Template '{template_key}' not found or not accessible")
+        
+        # Get template usage statistics (optional)
+        usage_stats = db.execute_single(
+            permission_query("GET_TEMPLATE_USAGE_STATS_BY_KEY"),
+            (template_key,),
+            fetch=True
+        )
+        
+        response_data = {
+            "template": template_result['template'],
+            "usage_stats": usage_stats or {}
         }
         
-        return success_response(template_with_string_ids, f"Template '{template_name}' loaded")
+        return success_response(
+            response_data,
+            f"Template '{template_key}' loaded successfully"
+        )
+        
     except Exception as e:
+        logger.error(f"Failed to load template {template_key}: {str(e)}")
         return error_response(f"Failed to load template: {str(e)}")
 
-@router.post("/templates")
-async def create_role_template(
-    template_data: RoleTemplate,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS))
-):
-    """Create a new role template - accepts string IDs"""
-    try:
-        template_key = template_data.name.lower().replace(" ", "_")
-        
-        if template_key in ROLE_TEMPLATES:
-            return error_response(f"Template '{template_key}' already exists")
-        
-        # Convert string IDs to int for storage
-        permission_ids_int = [int(pid) for pid in template_data.permission_ids]
-        
-        ROLE_TEMPLATES[template_key] = {
-            "name": template_data.name,
-            "description": template_data.description,
-            "permission_ids": permission_ids_int,  # Store as int
-            "power_level": template_data.power_level
-        }
-        
-        return success_response(message=f"Template '{template_data.name}' created successfully")
-    except ValueError:
-        return error_response("Invalid permission ID format")
-    except Exception as e:
-        return error_response(f"Failed to create template: {str(e)}")
 
 # ============ SYSTEM & AUDIT ENDPOINTS ============
 @router.get("/analysis/system")

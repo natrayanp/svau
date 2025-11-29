@@ -219,7 +219,16 @@ async def get_role_statistics(
     """Get statistics about role distribution"""
     try:
         stats = db.execute_query(
-            "SELECT role, COUNT(*) as user_count FROM users GROUP BY role ORDER BY user_count DESC",
+            """SELECT 
+                    ur.role_key,
+                    COUNT(DISTINCT ur.user_id) as user_count,
+                    ROUND(COUNT(DISTINCT ur.user_id) * 100.0 / (SELECT COUNT(DISTINCT user_id) FROM user_roles), 2) as percentage,
+                    -- Template usage stats
+                    (SELECT COUNT(DISTINCT template_id) FROM role_permissions rp WHERE rp.role_key = ur.role_key AND rp.is_template = true) as template_count
+                FROM user_roles ur
+                GROUP BY ur.role_key
+                ORDER BY user_count DESC;
+            """,
             fetch=True
         )
         
