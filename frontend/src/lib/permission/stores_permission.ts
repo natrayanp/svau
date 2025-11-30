@@ -152,10 +152,22 @@ export const getRoleByKey = (roleKey: string) => {
   return $systemRoles.find(role => role.role_key === roleKey);
 };
 
+// ENHANCED: Get role by ID from store
+export const getRoleById = (roleId: string) => {
+  const $systemRoles = get(systemRoles);
+  return $systemRoles.find(role => role.role_key === roleId);
+};
+
 // ENHANCED: Get role permissions from store
 export const getRolePermissions = (roleKey: string): string[] => {
   const role = getRoleByKey(roleKey);
   return role?.permissions || [];
+};
+
+// ENHANCED: Get role permissions as Set
+export const getRolePermissionsSet = (roleKey: string): Set<string> => {
+  const role = getRoleByKey(roleKey);
+  return new Set(role?.permissions || []);
 };
 
 // --------------------
@@ -189,6 +201,40 @@ function getAllPermissionsInMenu(menu: any) {
 function calculateRolePowerLevel(permissionIds: string[], permissionStructure: PermissionStructure | null): number {
   if (!permissionStructure) return 0;
   return PermissionUtils.getMaxPower(permissionIds, permissionStructure);
+}
+
+// ENHANCED: Update systemRoles store with new permissions
+function updateSystemRolePermissions(roleKey: string, newPermissions: string[]): void {
+  systemRoles.update(roles => 
+    roles.map(role => {
+      if (role.role_key === roleKey) {
+        const $permissionStructure = get(permissionStructure);
+        return {
+          ...role,
+          permissions: newPermissions,
+          permission_count: newPermissions.length,
+          power_level: calculateRolePowerLevel(newPermissions, $permissionStructure),
+          updated_at: new Date().toISOString()
+        };
+      }
+      return role;
+    })
+  );
+}
+
+// ENHANCED: Update user count for a role
+function updateRoleUserCount(roleKey: string, change: number): void {
+  systemRoles.update(roles =>
+    roles.map(role => {
+      if (role.role_key === roleKey) {
+        return {
+          ...role,
+          user_count: Math.max(0, (role.user_count || 0) + change)
+        };
+      }
+      return role;
+    })
+  );
 }
 
 // --------------------
@@ -338,12 +384,7 @@ export const permissionActions = {
       }
       
       // Update local store FIRST for immediate UI update
-      this.updateRoleInStore(roleKey, {
-        permissions: permissionIds,
-        permission_count: permissionIds.length,
-        power_level: calculateRolePowerLevel(permissionIds, get(permissionStructure)),
-        updated_at: new Date().toISOString()
-      });
+      updateSystemRolePermissions(roleKey, permissionIds);
       
       // Then call API for persistence
       const result = await permissionApi.updateRolePermissions(roleKey, permissionIds);
@@ -368,6 +409,16 @@ export const permissionActions = {
     } finally {
       loading.update(l => ({ ...l, saving: false }));
     }
+  },
+
+  // ✅ NEW: Update role permissions in store only (for PermissionTree component)
+  updateRolePermissionsInStore(roleId: string, permissions: string[]): void {
+    updateSystemRolePermissions(roleId, permissions);
+  },
+
+  // ✅ NEW: Get current role permissions from store
+  getCurrentRolePermissions(roleId: string): Set<string> {
+    return getRolePermissionsSet(roleId);
   },
 
   // ✅ Create New Role (Store + API)
@@ -430,6 +481,11 @@ export const permissionActions = {
     try {
       // Update local store FIRST
       this.updateUserRolesInStore(userId, roles);
+      
+      // Update role user counts
+      roles.forEach(roleKey => {
+        updateRoleUserCount(roleKey, 1);
+      });
       
       // Then call API (using first role for now)
       const result = await roleApi.updateUserRole(userId, roles[0]);
@@ -624,8 +680,7 @@ export const permissionActions = {
     roleTemplates.set(new Map());
     lastFetched.update(lf => ({ ...lf, roleTemplates: 0 }));
   },
-
-  // ✅ Existing methods for role operations
+    // ✅ Existing methods for role operations
   async loadRolePermissions(roleId: string) {
     try {
       // Use store-first approach instead of API call
@@ -1122,7 +1177,8 @@ export const permissionActions = {
       quickActions: null,
       auditLogs: null,
       health: null,
-      conflictCheck: null
+      conflictCheck: null,
+      users: null
     });
   }
 };

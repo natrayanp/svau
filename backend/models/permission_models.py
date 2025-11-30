@@ -107,18 +107,39 @@ class RoleTemplate(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-class SystemRole(BaseModel):
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+
+class RoleDetail(BaseModel):
     role_key: str
     display_name: str
-    description: str
+    description: Optional[str] = None
     is_system_role: bool
+    is_template: bool
+    template_id: Optional[str] = None
+    template_name: Optional[str] = None
     permission_count: int
+    permission_ids: List[int]   # IDs of granted permissions
     user_count: int
-    organization_name: str
+    created_at: datetime
+
+
+
+class RolesSummary(BaseModel):
+    total_roles: int
+    system_roles: int
+    template_roles: int
+    custom_roles: int
+    total_permission_assignments: int
+    total_user_assignments: int
+    current_organization: int
+    package_restrictions_applied: bool
 
 class OrganizationRolesResponse(BaseModel):
-    roles: List[SystemRole]
-    summary: Dict[str, Any]
+    roles: List[RoleDetail]
+    summary: RolesSummary
+
 
 class QuickAction(BaseModel):
     icon: str

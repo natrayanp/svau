@@ -6,11 +6,11 @@ import os
 from dotenv import load_dotenv
 
 # Import routes
-from routes.auth import auth_routes, user_routes, permission_routes, role_routes
+from routes.auth import auth_routes, permission_routes, role_routes
 from routes.system import db_analytics_routes
 
-from models import HealthCheckResponse, ErrorResponse
-from backend.utils.database.database import DatabaseManager  # Import the actual class
+#from models import HealthCheckResponse, ErrorResponse
+from utils.database.database import DatabaseManager  # Import the actual class
 
 # Load environment variables
 load_dotenv()
@@ -65,7 +65,7 @@ async def http_exception_handler(request, exc):
             error_type=type(exc).__name__
         ).model_dump()
     )
-
+'''
 # Health check endpoint
 @app.get("/", response_model=HealthCheckResponse, tags=["Health"])
 async def root():
@@ -92,13 +92,14 @@ async def health_check():
             status="unhealthy",
             database="connection failed"
         )
+'''
 
 # Mount all routes
 app.include_router(auth_routes.router)
-app.include_router(user_routes.router)  
+#app.include_router(user_routes.router)  
 app.include_router(permission_routes.router)
 app.include_router(role_routes.router)
-app.include_router(db_analytics_routes)
+#app.include_router(db_analytics_routes)
 
 
 if __name__ == "__main__":

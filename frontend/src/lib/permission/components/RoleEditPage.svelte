@@ -13,7 +13,7 @@
     getRoleByKey
   } from '$lib/permission/stores_permission.ts';
   import { PermissionUtils } from '$lib/permission/utils_permission';
-  import PermissionTree from '$lib/permission/components/PermissionTree.svelte';
+  import PermissionTree from './PermissionTree.svelte';
 
   // Props for different modes
   export let mode = 'view'; // 'new' | 'view' | 'edit'

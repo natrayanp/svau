@@ -3,8 +3,8 @@ from functools import lru_cache
 from fastapi import Depends, HTTPException, status
 from datetime import datetime, timedelta
 from .middleware import get_current_user
-from backend.utils.database import get_db
-from queries.query_manager import auth_query
+from utils.database import get_db
+from utils.database.query_manager import permission_query
 from models.auth_models import User
 import json
 
@@ -42,7 +42,7 @@ class DatabasePermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             modules_data = db.execute_query(
-                auth_query("GET_PERMISSION_MODULES"),
+                permission_query("GET_PERMISSION_MODULES"),
                 fetch=True
             )
             
@@ -57,7 +57,7 @@ class DatabasePermissionSystem:
                 
                 # ✅ USING QUERY MANAGER
                 menus_data = db.execute_query(
-                    auth_query("GET_PERMISSION_MENUS"),
+                    permission_query("GET_PERMISSION_MENUS"),
                     (module['id'],),  # DB uses int
                     fetch=True
                 )
@@ -68,7 +68,7 @@ class DatabasePermissionSystem:
                     
                     # ✅ USING QUERY MANAGER
                     cards_data = db.execute_query(
-                        auth_query("GET_PERMISSION_CARDS"),
+                        permission_query("GET_PERMISSION_CARDS"),
                         (menu['id'],),  # DB uses int
                         fetch=True
                     )
@@ -79,7 +79,7 @@ class DatabasePermissionSystem:
                         
                         # ✅ USING QUERY MANAGER
                         permissions_data = db.execute_query(
-                            auth_query("GET_CARD_PERMISSIONS"),
+                            permission_query("GET_CARD_PERMISSIONS"),
                             (card['id'],),  # DB uses int
                             fetch=True
                         )
@@ -115,7 +115,7 @@ class DatabasePermissionSystem:
                     
                     # ✅ USING QUERY MANAGER
                     menu_permissions_data = db.execute_query(
-                        auth_query("GET_MENU_PERMISSIONS"),
+                        permission_query("GET_MENU_PERMISSIONS"),
                         (menu['id'],),  # DB uses int
                         fetch=True
                     )
@@ -178,7 +178,7 @@ class DatabasePermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             cached = db.execute_single(
-                auth_query("GET_CACHE"),
+                permission_query("GET_CACHE"),
                 (cache_key,)
             )
             if cached and cached['cache_data']:
@@ -193,7 +193,7 @@ class DatabasePermissionSystem:
             expires_at = datetime.utcnow() + timedelta(seconds=self.cache_ttl)
             # ✅ USING QUERY MANAGER
             db.execute_insert(
-                auth_query("SET_CACHE"),
+                permission_query("SET_CACHE"),
                 (cache_key, json.dumps(structure), expires_at)
             )
         except Exception as e:
@@ -225,7 +225,7 @@ class DatabasePermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             permissions = db.execute_query(
-                auth_query("GET_ROLE_PERMISSIONS"),
+                permission_query("GET_ROLE_PERMISSIONS"),
                 (role_key,),
                 fetch=True
             )
@@ -246,7 +246,7 @@ class DatabasePermissionSystem:
             # ✅ USING QUERY MANAGER
             # Clear existing permissions
             db.execute_update(
-                auth_query("DELETE_ROLE_PERMISSIONS"),
+                permission_query("DELETE_ROLE_PERMISSIONS"),
                 (role_key,)
             )
             
@@ -254,14 +254,14 @@ class DatabasePermissionSystem:
             for perm_id in permission_ids_int:
                 # ✅ USING QUERY MANAGER
                 db.execute_insert(
-                    auth_query("INSERT_ROLE_PERMISSION"),
+                    permission_query("INSERT_ROLE_PERMISSION"),
                     (role_key, perm_id, granted_by)
                 )
             
             # ✅ USING QUERY MANAGER
             # Clear cache
             db.execute_update(
-                auth_query("DELETE_CACHE"),
+                permission_query("DELETE_CACHE"),
                 (f'role_permissions_{role_key}%',)
             )
             
@@ -279,7 +279,7 @@ class DatabasePermissionSystem:
             perm_id_int = self._string_to_int_id(permission_id)
             # ✅ USING QUERY MANAGER
             permission = db.execute_single(
-                auth_query("GET_PERMISSION_DETAILS"),
+                permission_query("GET_PERMISSION_DETAILS"),
                 (perm_id_int,)
             )
             
@@ -307,7 +307,7 @@ class DatabasePermissionSystem:
             perm_id_int = self._string_to_int_id(permission_id)
             # ✅ USING QUERY MANAGER
             permission = db.execute_single(
-                auth_query("VALIDATE_PERMISSION"),
+                permission_query("VALIDATE_PERMISSION"),
                 (perm_id_int,)
             )
             return permission is not None
@@ -337,14 +337,14 @@ class DatabasePermissionSystem:
             if max_power is not None:
                 # ✅ USING QUERY MANAGER
                 permissions = db.execute_query(
-                    auth_query("GET_PERMISSIONS_BY_POWER"),
+                    permission_query("GET_PERMISSIONS_BY_POWER"),
                     (max_power,),
                     fetch=True
                 )
             else:
                 # ✅ USING QUERY MANAGER
                 permissions = db.execute_query(
-                    auth_query("GET_ALL_PERMISSIONS"),
+                    permission_query("GET_ALL_PERMISSIONS"),
                     fetch=True
                 )
             
@@ -382,7 +382,7 @@ class ExplicitPermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             permissions = db.execute_query(
-                auth_query("GET_USER_PERMISSIONS"),
+                permission_query("GET_USER_PERMISSIONS"),
                 (user_id,),
                 fetch=True
             )
@@ -399,7 +399,7 @@ class ExplicitPermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             user_data = db.execute_single(
-                auth_query("GET_USER_ROLE"),
+                permission_query("GET_USER_ROLE"),
                 (user_id,),
                 fetch=True
             )
@@ -499,7 +499,7 @@ class ExplicitPermissionSystem:
         try:
             # ✅ USING QUERY MANAGER
             permissions = db.execute_query(
-                auth_query("GET_DEFAULT_PERMISSIONS"),
+                permission_query("GET_DEFAULT_PERMISSIONS"),
                 fetch=True
             )
             return [self.db_system._int_to_string_id(row['id']) for row in permissions]  # Convert to string
@@ -584,7 +584,7 @@ class RolePermissions:
         try:
             # ✅ USING QUERY MANAGER
             permissions = db.execute_query(
-                auth_query("GET_ROLE_PERMISSIONS"),
+                permission_query("GET_ROLE_PERMISSIONS"),
                 (role,),
                 fetch=True
             )

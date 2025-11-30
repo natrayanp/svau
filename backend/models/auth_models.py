@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -173,3 +173,12 @@ class PermissionAuditResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Add the missing User class
+class User(UserResponse):
+    """User model for database operations"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    # You can add any additional fields needed for the User class
+    roles: Optional[List[str]] = None

@@ -211,16 +211,18 @@ export interface SystemRole {
   display_name: string;
   description: string;
   is_system_role: boolean;
+  is_template: boolean;
+  template_id: string[];
+  template_name: string[];
   permission_count: number;
   user_count: number;
-  organization_name: string;
+
   // ADD THESE FOR LOCAL OPERATIONS:
   permissions?: string[]; // permission IDs for this role
   power_level?: number;   // calculated power level
   created_at?: string;    // ISO timestamp
   updated_at?: string;    // ISO timestamp
 }
-
 
 export interface SystemRolesResponse {
   roles: SystemRole[];

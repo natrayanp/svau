@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict, Any
-from backend.utils.database import get_db
-from backend.utils.auth.middleware import get_current_user
-from backend.utils.auth.permissions import (
+from utils.database import get_db
+from utils.auth.middleware import get_current_user
+from utils.auth.permissions import (
     require_permission_id, ExplicitPermissionSystem, 
     PERMISSION_STRUCTURE, CommonPermissionIds, RolePermissions,
     ROLE_TEMPLATES, require_minimum_power

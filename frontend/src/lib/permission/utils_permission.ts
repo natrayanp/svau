@@ -238,6 +238,7 @@ export class PermissionUtils {
   }
 
   static getCardPermissions(cardId: string, selectedPermissions: Map<string, Set<string>>): Set<string> {  // ← CHANGED TO STRING
+    console.log(cardId);
     return selectedPermissions.get(cardId) || new Set<string>();
   }
 

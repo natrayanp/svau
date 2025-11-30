@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from .jwt_utils import jwt_manager
-from backend.utils.database import get_db
+from utils.database import get_db
 from models.auth_models import User
 
 security = HTTPBearer()
@@ -23,6 +23,7 @@ async def get_current_user(
         user_id = payload.get("user_id")
         
         if not user_id:
+            print('unable to get userid')
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload"

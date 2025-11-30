@@ -15,7 +15,7 @@ export class BaseApi {
   protected mockResponses: Record<string, any> = {};
 
   // ✅ GLOBAL MOCK CONTROL VARIABLE
-  private static globalMockEnabled: boolean = true;
+  private static globalMockEnabled: boolean = false;
 
   // ✅ Deduplication and caching maps
   private inFlightRequests: Map<string, Promise<any>> = new Map();
@@ -25,7 +25,7 @@ export class BaseApi {
     this.baseUrl = baseUrl;
     // ✅ Use global mock setting by default, allow override
     //this.useMock = useMock ?? BaseApi.globalMockEnabled;
-    this.useMock = true;
+    this.useMock = false;
   }
 
   protected setMockResponses(responses: Record<string, any>) {

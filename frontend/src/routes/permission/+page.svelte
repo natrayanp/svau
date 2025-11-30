@@ -508,7 +508,7 @@
       </div>
 
       <!-- Quick Actions Footer -->
-      <div class="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
+      <!--div class="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
         {#if activeTab === 'roles' && roleManagementView === 'list'}
           <button
             on:click={createNewRole}
@@ -532,7 +532,7 @@
           <span>👥</span>
           <span>User Management</span>
         </a>
-      </div>
+      </div-->
     </div>
     {/if}
   </div>

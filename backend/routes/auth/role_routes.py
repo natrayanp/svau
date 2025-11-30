@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict, Any
 from datetime import datetime
 
-from backend.utils.database import get_db
-from backend.utils.auth.middleware import get_current_user
-from backend.utils.auth.permissions import require_permission_id, CommonPermissionIds
+from utils.database import get_db
+from utils.auth.middleware import get_current_user
+from utils.auth.permissions import require_permission_id, CommonPermissionIds
 from models.auth_models import SuccessResponse, User
-from queries.query_manager import auth_query
+from utils.database.query_manager import permission_query
 
 router = APIRouter(prefix="/auth-api/roles", tags=["roles"])
 

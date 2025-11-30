@@ -1,7 +1,5 @@
-# utils/response_utils.py
-from pydantic import BaseModel, Generic, TypeVar, Field
-from typing import Any, Optional, List, Dict, Type
-from fastapi import HTTPException, status
+from pydantic import BaseModel, Field
+from typing import Optional, Any, List, Generic, TypeVar
 import datetime
 
 T = TypeVar('T')  # Generic type for success data

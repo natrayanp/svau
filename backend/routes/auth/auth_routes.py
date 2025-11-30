@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from backend.utils.database import get_db
-from auth.firebase_utils import firebase_manager
-from auth.jwt_utils import jwt_manager
-from backend.utils.auth.middleware import get_current_user
+from utils.database import get_db
+from utils.auth.firebase_utils import firebase_manager
+from utils.auth.jwt_utils import jwt_manager
+from utils.auth.middleware import get_current_user
 from models.auth_models import (
     LoginRequest, TokenResponse, UserCreate, UserResponse, 
     SuccessResponse, ErrorResponse
 )
-from queries.query_manager import auth_query  # Updated import
+from utils.database.query_manager import permission_query
+
+
 
 router = APIRouter(prefix="/auth-api", tags=["authentication"])
 
@@ -24,7 +26,7 @@ async def login(
         
         # Check if user exists in our database
         user = db.execute_single(
-            auth_query("GET_USER_BY_UID"),  # Using auth_query convenience function
+            permission_query("GET_USER_BY_UID"),  # Using permission_query convenience function
             (firebase_user["uid"],)
         )
         
@@ -70,7 +72,7 @@ async def register(
     try:
         # Check if user already exists
         existing_user = db.execute_single(
-            auth_query("GET_USER_BY_UID"),
+            permission_query("GET_USER_BY_UID"),
             (user_data.uid,)
         )
         
@@ -82,7 +84,7 @@ async def register(
         
         # Check if email already exists
         existing_email = db.execute_single(
-            auth_query("GET_USER_BY_EMAIL"),
+            permission_query("GET_USER_BY_EMAIL"),
             (user_data.email,)
         )
         
@@ -94,7 +96,7 @@ async def register(
         
         # Create user
         user_id = db.execute_insert(
-            auth_query("CREATE_USER"),
+            permission_query("CREATE_USER"),
             (
                 user_data.uid,
                 user_data.email,
@@ -106,7 +108,7 @@ async def register(
         
         # Get created user
         user = db.execute_single(
-            auth_query("GET_USER_BY_ID"),
+            permission_query("GET_USER_BY_ID"),
             (user_id,)
         )
         
@@ -168,7 +170,7 @@ async def update_current_user_info(
     try:
         # Update user in database
         success = db.execute_update(
-            auth_query("UPDATE_USER"),
+            permission_query("UPDATE_USER"),
             (
                 user_update.get('display_name', current_user.display_name),
                 user_update.get('role', current_user.role).value,
@@ -185,7 +187,7 @@ async def update_current_user_info(
         
         # Get updated user
         updated_user = db.execute_single(
-            auth_query("GET_USER_BY_ID"),
+            permission_query("GET_USER_BY_ID"),
             (current_user.id,)
         )
         
@@ -207,7 +209,7 @@ async def delete_current_user(
     """Delete current user account"""
     try:
         success = db.execute_update(
-            auth_query("DELETE_USER"),
+            permission_query("DELETE_USER"),
             (current_user.id,)
         )
         

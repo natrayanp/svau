@@ -6,8 +6,8 @@ import os
 import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.utils.database import Database
-from backend.utils.auth.permissions import PERMISSION_STRUCTURE
+from utils.database import Database
+from utils.auth.permissions import PERMISSION_STRUCTURE
 
 def migrate_permission_structure():
     """Migrate hardcoded permission structure to database tables"""
@@ -69,7 +69,7 @@ def migrate_permission_structure():
         
         # Migrate role permissions from hardcoded structure
         print("Migrating role permissions...")
-        from backend.utils.auth.permissions import RolePermissions
+        from utils.auth.permissions import RolePermissions
         
         role_permission_mapping = {
             "basic": {5001, 5004, 6001, 7001},
@@ -114,7 +114,7 @@ def migrate_permission_structure():
         print(f"Role permissions: {role_perms_count}")
         
         # Test structure loading
-        from backend.utils.auth.permissions import DatabasePermissionSystem
+        from utils.auth.permissions import DatabasePermissionSystem
         perm_system = DatabasePermissionSystem()
         structure = perm_system.get_permission_structure_from_db(db)
         print(f"Structure loaded successfully: {len(structure['modules'])} modules")

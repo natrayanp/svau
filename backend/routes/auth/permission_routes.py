@@ -4,9 +4,9 @@ from datetime import datetime
 
 from pydantic import ValidationError
 
-from backend.utils.database import get_db
-from backend.utils.auth.middleware import get_current_user
-from backend.utils.auth.permissions import (
+from utils.database import get_db
+from utils.auth.middleware import get_current_user
+from utils.auth.permissions import (
     require_permission_id, ExplicitPermissionSystem, 
     CommonPermissionIds, RolePermissions, ROLE_TEMPLATES
 )
@@ -20,7 +20,7 @@ from models.auth_models import (
 from models.permission_models import (PermissionStructure,UserModel)
 from models.api_models import (ApiResponse)
 
-from queries.query_manager import permission_query
+from utils.database.query_manager import permission_query
 
 
 
@@ -118,6 +118,7 @@ async def get_organization_roles(
     db = Depends(get_db)
 ):
     """Get roles for current user's organization with package filtering"""
+    print('inside roles')
     try:
         # Pass current user ID to the query
         result = db.execute_single(

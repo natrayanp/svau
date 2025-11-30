@@ -197,12 +197,10 @@ GET_USER_ROLE = "SELECT role_key FROM user_roles WHERE user_id = %s"
 # DEFAULT PERMISSIONS QUERY
 GET_DEFAULT_PERMISSIONS = "SELECT id FROM permissions WHERE power_level <= 20 AND is_active = TRUE ORDER BY power_level LIMIT 5"
 
-#PERMISSION_STRUCTURE_QUERY
 PERMISSION_STRUCTURE_QUERY = """
-WITH recursive_structure AS (
-    -- Get modules (level 1)
+WITH module_data AS (
     SELECT 
-        id,
+        permissstruct_id as id,
         record_type,
         key,
         name,
@@ -210,171 +208,139 @@ WITH recursive_structure AS (
         icon,
         color,
         display_order,
-        allowed_actions,
-        parent_id,
-        NULL as parent_name,
-        1 as level
+        allowed_actions
     FROM permission_structures 
     WHERE record_type = 'module' AND is_active = true
-    
-    UNION ALL
-    
-    -- Get menus and cards (level 2+)
-    SELECT 
-        child.id,
-        child.record_type,
-        child.key,
-        child.name,
-        child.description,
-        child.icon,
-        child.color,
-        child.display_order,
-        child.allowed_actions,
-        child.parent_id,
-        parent.name as parent_name,
-        parent.level + 1 as level
-    FROM permission_structures child
-    INNER JOIN recursive_structure parent ON child.parent_id = parent.id
-    WHERE child.is_active = true
+    ORDER BY display_order
 ),
-structure_with_actions AS (
+menu_data AS (
     SELECT 
-        rs.*,
-        action_val as action_key,
-        ad.display_name as action_display_name,
-        ad.power_level,
-        ad.category
-    FROM recursive_structure rs
-    CROSS JOIN LATERAL jsonb_array_elements_text(rs.allowed_actions) as action_val
-    INNER JOIN action_definitions ad ON ad.action_key = action_val
-    WHERE ad.is_active = true
+        ps.permissstruct_id as id,
+        ps.record_type,
+        ps.key,
+        ps.name,
+        ps.description,
+        ps.display_order,
+        ps.parent_id as module_id,
+        ps.allowed_actions
+    FROM permission_structures ps
+    WHERE ps.record_type = 'menu' AND ps.is_active = true
+    ORDER BY ps.display_order
 ),
-action_details_agg AS (
+card_data AS (
     SELECT 
-        id,
+        ps.permissstruct_id as id,
+        ps.record_type,
+        ps.key,
+        ps.name,
+        ps.description,
+        ps.display_order,
+        ps.parent_id as menu_id,
+        ps.allowed_actions
+    FROM permission_structures ps
+    WHERE ps.record_type = 'card' AND ps.is_active = true
+    ORDER BY ps.display_order
+),
+action_details AS (
+    SELECT 
+        ps.permissstruct_id,
         JSON_AGG(
             JSON_BUILD_OBJECT(
-                'action_key', action_key,
-                'display_name', action_display_name,
-                'power_level', power_level,
-                'category', category
+                'action_key', ad.action_key,
+                'display_name', ad.display_name,
+                'power_level', ad.power_level,
+                'category', ad.category
             )
         ) as action_details
-    FROM structure_with_actions
-    GROUP BY id
-),
-cards_aggregated AS (
-    SELECT 
-        ps.id,
-        ps.parent_id as menu_id,
-        JSON_BUILD_OBJECT(
-            'id', ps.id::text,
-            'record_type', ps.record_type,
-            'key', ps.key,
-            'name', ps.name,
-            'description', ps.description,
-            'display_order', ps.display_order,
-            'menu_id', ps.parent_id::text,
-            'allowed_actions', COALESCE(ada.action_details, '[]'::json)
-        ) as card_data
     FROM permission_structures ps
-    LEFT JOIN action_details_agg ada ON ps.id = ada.id
-    WHERE ps.record_type = 'card' AND ps.is_active = true
-),
-menus_with_cards AS (
-    SELECT 
-        ps.id,
-        ps.parent_id as module_id,
-        JSON_BUILD_OBJECT(
-            'id', ps.id::text,
-            'record_type', ps.record_type,
-            'key', ps.key,
-            'name', ps.name,
-            'description', ps.description,
-            'display_order', ps.display_order,
-            'module_id', ps.parent_id::text,
-            'allowed_actions', COALESCE(ada.action_details, '[]'::json),
-            'cards', COALESCE(
-                (SELECT JSON_AGG(card_data ORDER BY (card_data->>'display_order')::int)
-                 FROM cards_aggregated ca 
-                 WHERE ca.menu_id = ps.id),
-                '[]'::json
-            )
-        ) as menu_data
-    FROM permission_structures ps
-    LEFT JOIN action_details_agg ada ON ps.id = ada.id
-    WHERE ps.record_type = 'menu' AND ps.is_active = true
-),
-modules_with_menus AS (
-    SELECT 
-        ps.id,
-        JSON_BUILD_OBJECT(
-            'id', ps.id::text,
-            'record_type', ps.record_type,
-            'key', ps.key,
-            'name', ps.name,
-            'description', ps.description,
-            'icon', ps.icon,
-            'color', ps.color,
-            'display_order', ps.display_order,
-            'allowed_actions', COALESCE(ada.action_details, '[]'::json),
-            'menus', COALESCE(
-                (SELECT JSON_AGG(menu_data ORDER BY (menu_data->>'display_order')::int)
-                 FROM menus_with_cards mwc 
-                 WHERE mwc.module_id = ps.id),
-                '[]'::json
-            )
-        ) as module_data
-    FROM permission_structures ps
-    LEFT JOIN action_details_agg ada ON ps.id = ada.id
-    WHERE ps.record_type = 'module' AND ps.is_active = true
+    CROSS JOIN LATERAL jsonb_array_elements_text(ps.allowed_actions) as action_val
+    INNER JOIN action_definitions ad ON ad.action_key = action_val
+    WHERE ad.is_active = true
+    GROUP BY ps.permissstruct_id
 )
 SELECT 
     JSON_BUILD_OBJECT(
         'modules', (
-            SELECT JSON_AGG(module_data ORDER BY (module_data->>'display_order')::int)
-            FROM modules_with_menus
-        ),
-        'metadata', JSON_BUILD_OBJECT(
-            'total_modules', (SELECT COUNT(*) FROM permission_structures WHERE record_type = 'module' AND is_active = true),
-            'total_menus', (SELECT COUNT(*) FROM permission_structures WHERE record_type = 'menu' AND is_active = true),
-            'total_cards', (SELECT COUNT(*) FROM permission_structures WHERE record_type = 'card' AND is_active = true),
-            'total_permissions', (
-                SELECT COUNT(*)
-                FROM permission_structures ps
-                CROSS JOIN LATERAL jsonb_array_elements_text(ps.allowed_actions) as action_val
-                WHERE ps.is_active = true
-            ),
-            'last_updated', NOW()::text
+            SELECT JSON_AGG(
+                JSON_BUILD_OBJECT(
+                    'id', md.id::text,
+                    'record_type', md.record_type,
+                    'key', md.key,
+                    'name', md.name,
+                    'description', md.description,
+                    'icon', md.icon,
+                    'color', md.color,
+                    'display_order', md.display_order,
+                    'allowed_actions', COALESCE(ad.action_details, '[]'::json),
+                    'menus', (
+                        SELECT JSON_AGG(
+                            JSON_BUILD_OBJECT(
+                                'id', m.id::text,
+                                'record_type', m.record_type,
+                                'key', m.key,
+                                'name', m.name,
+                                'description', m.description,
+                                'display_order', m.display_order,
+                                'module_id', m.module_id::text,
+                                'allowed_actions', COALESCE(ad2.action_details, '[]'::json),
+                                'cards', (
+                                    SELECT JSON_AGG(
+                                        JSON_BUILD_OBJECT(
+                                            'id', c.id::text,
+                                            'record_type', c.record_type,
+                                            'key', c.key,
+                                            'name', c.name,
+                                            'description', c.description,
+                                            'display_order', c.display_order,
+                                            'menu_id', c.menu_id::text,
+                                            'allowed_actions', COALESCE(ad3.action_details, '[]'::json)
+                                        )
+                                        ORDER BY c.display_order
+                                    )
+                                    FROM card_data c
+                                    LEFT JOIN action_details ad3 ON c.id = ad3.permissstruct_id
+                                    WHERE c.menu_id = m.id
+                                )
+                            )
+                            ORDER BY m.display_order
+                        )
+                        FROM menu_data m
+                        LEFT JOIN action_details ad2 ON m.id = ad2.permissstruct_id
+                        WHERE m.module_id = md.id
+                    )
+                )
+                ORDER BY md.display_order
+            )
+            FROM module_data md
+            LEFT JOIN action_details ad ON md.id = ad.permissstruct_id
         )
     ) as permission_structure
 """
 
-
 ORGANIZATION_ROLES_QUERY = """
 WITH user_organization AS (
-    SELECT organization_id 
+    SELECT org_id 
     FROM users 
-    WHERE id = :current_user_id  -- 👈 CURRENT USER CONTEXT
+    WHERE user_id = :current_user_id  -- 👈 CURRENT USER CONTEXT
 ),
 active_package_menus AS (
     SELECT 
-        p.organization_id,
+        p.org_id,
         p.allowed_menu_ids
     FROM packages p
-    WHERE p.organization_id = (SELECT organization_id FROM user_organization)
-      AND p.status = 'active'
+    WHERE p.org_id = (SELECT org_id FROM user_organization)
+      AND p.status = 'AC'  -- 👈 CORRECT STATUS
       AND CURRENT_DATE BETWEEN p.effective_date 
           AND (p.expiry_date + INTERVAL '1 day' * p.grace_period_days)
     ORDER BY p.created_at DESC
     LIMIT 1
 ),
 filtered_permission_structures AS (
-    SELECT DISTINCT ps.id
+    SELECT DISTINCT ps.permissstruct_id as id
     FROM permission_structures ps
     CROSS JOIN active_package_menus apm
     WHERE ps.record_type = 'module'  -- Always allow modules
-       OR ps.id = ANY(SELECT jsonb_array_elements_text(apm.allowed_menu_ids)::integer)  -- Only allowed menus
+       OR ps.permissstruct_id = ANY(SELECT jsonb_array_elements_text(apm.allowed_menu_ids)::integer)  -- Only allowed menus
        OR (ps.record_type = 'card' AND ps.parent_id IN (
            SELECT jsonb_array_elements_text(apm.allowed_menu_ids)::integer
        ))  -- Cards of allowed menus
@@ -382,34 +348,34 @@ filtered_permission_structures AS (
 role_permission_counts AS (
     SELECT 
         r.role_key,
-        r.organization_id,
-        COUNT(DISTINCT rp.id) as permission_count,
-        JSON_AGG(DISTINCT rp.id) as permission_ids
+        r.org_id,
+        COUNT(DISTINCT rp.permission_id) as permission_count,
+        JSON_AGG(DISTINCT rp.permission_id) as permission_ids
     FROM roles r
     CROSS JOIN LATERAL jsonb_array_elements_text(r.permission_ids) as perm_id
-    JOIN role_permissions rp ON rp.id = perm_id::integer
-    JOIN permission_structures ps ON rp.structure_id = ps.id
+    JOIN role_permissions rp ON rp.permission_id = perm_id::integer
+    JOIN permission_structures ps ON rp.structure_id = ps.permissstruct_id
     WHERE r.is_active = true 
-      AND rp.is_active = true
-      AND ps.id IN (SELECT id FROM filtered_permission_structures)  -- 👈 PACKAGE FILTER
-      AND r.organization_id = (SELECT organization_id FROM user_organization)  -- 👈 ORG FILTER
-    GROUP BY r.role_key, r.organization_id
+      AND rp.status = 'AC'  -- 👈 CORRECT STATUS
+      AND ps.permissstruct_id IN (SELECT id FROM filtered_permission_structures)  -- 👈 PACKAGE FILTER
+      AND r.org_id = (SELECT org_id FROM user_organization)  -- 👈 ORG FILTER
+    GROUP BY r.role_key, r.org_id
 ),
 role_user_counts AS (
     SELECT 
         ur.role_key,
-        ur.organization_id,
+        ur.org_id,
         COUNT(DISTINCT ur.user_id) as user_count
     FROM user_roles ur
-    JOIN users u ON ur.user_id = u.id
-    WHERE u.is_active = true
-      AND ur.organization_id = (SELECT organization_id FROM user_organization)  -- 👈 ORG FILTER
-    GROUP BY ur.role_key, ur.organization_id
+    JOIN users u ON ur.user_id = u.user_id
+    WHERE u.status = 'AC'  -- 👈 CORRECT STATUS
+      AND ur.org_id = (SELECT org_id FROM user_organization)  -- 👈 ORG FILTER
+    GROUP BY ur.role_key, ur.org_id
 ),
 role_details AS (
     SELECT 
         r.role_key,
-        r.organization_id,
+        r.org_id,
         r.display_name,
         r.description,
         r.is_system_role,
@@ -419,14 +385,14 @@ role_details AS (
         r.created_at,
         o.name as organization_name,
         COALESCE(rpc.permission_count, 0) as permission_count,
-        COALESCE(rpc.permission_ids, '[]'::jsonb) as permission_ids,
+        COALESCE(rpc.permission_ids, '[]'::json) as permission_ids,  -- 👈 CHANGED TO json
         COALESCE(ruc.user_count, 0) as user_count
     FROM roles r
-    JOIN organizations o ON r.organization_id = o.id
-    LEFT JOIN role_permission_counts rpc ON r.role_key = rpc.role_key AND r.organization_id = rpc.organization_id
-    LEFT JOIN role_user_counts ruc ON r.role_key = ruc.role_key AND r.organization_id = ruc.organization_id
+    JOIN organizations o ON r.org_id = o.org_id
+    LEFT JOIN role_permission_counts rpc ON r.role_key = rpc.role_key AND r.org_id = rpc.org_id
+    LEFT JOIN role_user_counts ruc ON r.role_key = ruc.role_key AND r.org_id = ruc.org_id
     WHERE r.is_active = true
-      AND r.organization_id = (SELECT organization_id FROM user_organization)  -- 👈 ORG FILTER
+      AND r.org_id = (SELECT org_id FROM user_organization)  -- 👈 ORG FILTER
 )
 SELECT 
     JSON_BUILD_OBJECT(
@@ -434,7 +400,7 @@ SELECT
             SELECT JSON_AGG(
                 JSON_BUILD_OBJECT(
                     'role_key', rd.role_key,
-                    'organization_id', rd.organization_id,
+                    'organization_id', rd.org_id,
                     'display_name', rd.display_name,
                     'description', rd.description,
                     'is_system_role', rd.is_system_role,
@@ -458,12 +424,13 @@ SELECT
             'custom_roles', COUNT(*) FILTER (WHERE is_system_role = false AND is_template = false),
             'total_permission_assignments', SUM(permission_count),
             'total_user_assignments', SUM(user_count),
-            'current_organization', (SELECT organization_id FROM user_organization),
+            'current_organization', (SELECT org_id FROM user_organization),
             'package_restrictions_applied', true  -- 👈 INDICATES FILTERING
         )
     ) as roles_data
 FROM role_details
 """
+
 
 ORGANIZATION_USERS_QUERY="""
 WITH requester_org AS (

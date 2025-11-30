@@ -1,32 +1,38 @@
 -- =============================================
--- COMPLETE CORRECTED SCHEMA
+-- COMPLETE CORRECTED SCHEMA (PostgreSQL)
 -- =============================================
 
+-- Allowed status values: AC=active, IA=in-active, SU=suspended, EX=expired, CA=cancelled, DE=deleted
+-- Note: 'user_id' is a single primary key for users to allow direct foreign keys elsewhere.
+
 CREATE TABLE organizations (
-    id SERIAL PRIMARY KEY,
+    org_id SERIAL PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'IA',
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE users (
-    id SERIAL,
+    user_id SERIAL PRIMARY KEY,
     uid VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(255) NOT NULL,
     display_name VARCHAR(100),
-    organization_id INTEGER NOT NULL REFERENCES organizations(id),
+    org_id INTEGER NOT NULL REFERENCES organizations(org_id) ON DELETE RESTRICT,
     email_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id, organization_id),
-    UNIQUE(organization_id, email)
+    status VARCHAR(20) DEFAULT 'IA',
+    UNIQUE(org_id, email),
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE packages (
-    id SERIAL PRIMARY KEY,
-    organization_id INTEGER NOT NULL REFERENCES organizations(id),
+    package_id SERIAL PRIMARY KEY,
+    org_id INTEGER NOT NULL REFERENCES organizations(org_id) ON DELETE CASCADE,
     package_name VARCHAR(200) NOT NULL,
     package_key VARCHAR(100) NOT NULL,
     description TEXT,
@@ -41,16 +47,16 @@ CREATE TABLE packages (
     effective_date DATE NOT NULL,
     expiry_date DATE NOT NULL,
     grace_period_days INTEGER DEFAULT 7,
-    status VARCHAR(20) DEFAULT 'active',
     is_trial BOOLEAN DEFAULT FALSE,
     auto_renew BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(id),
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_by INTEGER REFERENCES users(id),
+    updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'IA',
     CHECK (expiry_date >= effective_date),
     CHECK (grace_period_days >= 0),
-    CHECK (status IN ('active', 'suspended', 'expired', 'cancelled'))
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE action_definitions (
@@ -61,11 +67,13 @@ CREATE TABLE action_definitions (
     category VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'IA',
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE permission_structures (
-    id SERIAL PRIMARY KEY,
+    permissstruct_id SERIAL PRIMARY KEY,
     record_type VARCHAR(20) NOT NULL CHECK (record_type IN ('module', 'menu', 'card')),
     key VARCHAR(100) NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -73,28 +81,29 @@ CREATE TABLE permission_structures (
     display_order INTEGER DEFAULT 0,
     icon VARCHAR(50),
     color VARCHAR(20),
-    parent_id INTEGER REFERENCES permission_structures(id),
-    module_id INTEGER,
-    menu_id INTEGER,
+    parent_id INTEGER REFERENCES permission_structures(permissstruct_id) ON DELETE SET NULL,
     allowed_actions JSONB NOT NULL DEFAULT '[]',
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'IA',
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE role_permissions (
-    id SERIAL PRIMARY KEY,
-    structure_id INTEGER NOT NULL REFERENCES permission_structures(id),
+    permission_id SERIAL PRIMARY KEY,
+    structure_id INTEGER NOT NULL REFERENCES permission_structures(permissstruct_id) ON DELETE CASCADE,
     granted_actions JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE,
-    UNIQUE(structure_id, granted_actions)
+    status VARCHAR(20) DEFAULT 'IA',
+    UNIQUE (structure_id, granted_actions),
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE roles (
     role_key VARCHAR(50) NOT NULL,
-    organization_id INTEGER NOT NULL REFERENCES organizations(id),
+    org_id INTEGER NOT NULL REFERENCES organizations(org_id) ON DELETE CASCADE,
     display_name VARCHAR(100) NOT NULL,
     description TEXT,
     permission_ids JSONB NOT NULL DEFAULT '[]',
@@ -106,26 +115,39 @@ CREATE TABLE roles (
     is_system_role BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(id),
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_by INTEGER REFERENCES users(id),
-    PRIMARY KEY (role_key, organization_id),
+    updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'IA',
+    PRIMARY KEY (role_key, org_id),
     CONSTRAINT template_check CHECK (
-        (is_template = true AND template_id IS NOT NULL AND template_name IS NOT NULL) OR
+        (is_template = true AND template_id IS NOT NULL AND template_name IS NOT NULL)
+        OR
         (is_template = false AND template_id IS NULL)
-    )
+    ),
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE user_roles (
-    id SERIAL PRIMARY KEY,
+    userrole_id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     role_key VARCHAR(50) NOT NULL,
-    organization_id INTEGER NOT NULL,
+    org_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(id),
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_by INTEGER REFERENCES users(id),
+    updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'IA',
     UNIQUE(user_id, role_key),
-    FOREIGN KEY (role_key, organization_id) REFERENCES roles(role_key, organization_id),
-    FOREIGN KEY (user_id, organization_id) REFERENCES users(id, organization_id)
+    FOREIGN KEY (role_key, org_id) REFERENCES roles(role_key, org_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
+
+-- Optional: a convenience index to speed lookups
+CREATE INDEX idx_users_org_id ON users(org_id);
+CREATE INDEX idx_packages_org_id ON packages(org_id);
+CREATE INDEX idx_roles_org_id ON roles(org_id);
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_permission_structures_key ON permission_structures(key);
+

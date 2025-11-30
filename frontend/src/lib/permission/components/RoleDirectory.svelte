@@ -248,6 +248,17 @@
         </div>
 
         <div class="text-sm text-gray-500">
+            <button
+                on:click={onCreateRole}
+                class="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
+                title="Create New Role"
+              >
+                <span>➕</span>
+                <span>Add New Role</span>
+              </button>
+        </div>
+
+        <div class="text-sm text-gray-500">
           {filteredRoles.length} {filteredRoles.length === 1 ? 'role' : 'roles'} found
         </div>
       </div>

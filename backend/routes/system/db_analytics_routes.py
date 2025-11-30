@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import FileResponse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional,List
 from datetime import datetime, timedelta
 import os
 
-from .query_manager import query_manager, QueryManager, DatabaseStatsLogger
-from .database import get_db  # Your database connection function
+from utils.database.query_manager import query_manager, QueryManager, DatabaseStatsLogger
+from utils.database import get_db  # Your database connection function
 
 router = APIRouter(prefix="/api/analytics", tags=["Query Analytics"])
 
