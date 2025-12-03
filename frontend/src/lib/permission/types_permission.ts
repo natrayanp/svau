@@ -206,7 +206,7 @@ export interface RolePermissionsResponse {
 
 
 
-export interface SystemRole {
+export interface Role {
   role_key: string;
   display_name: string;
   description: string;
@@ -224,17 +224,17 @@ export interface SystemRole {
   updated_at?: string;    // ISO timestamp
 }
 
-export interface SystemRolesResponse {
-  roles: SystemRole[];
+export interface RoleResponse {
+  roles: Role[];
   summary: Record<string, any>;
 }
 
 export interface User {
-  id: number;                // Primary key
+  user_id: string;                // Primary key
   uid: string;               // Unique external identifier
   email: string;             // User email
   display_name?: string;     // Optional display name
-  organization_id: number;   // Organization foreign key
+  org_id: string;   // Organization foreign key
   email_verified: boolean;   // Whether email is verified
   created_at: string;        // ISO timestamp
   updated_at: string;        // ISO timestamp
@@ -475,11 +475,30 @@ export interface PermissionCache {
   ttl: number;
 }
 
+// ==================== Paginated response ====================
+
+// paginationTypes.ts
+export interface PaginatedData<T>  {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+export type GenericCache<T> = Record<number, T[]>;
+
+
+
 // ==================== SPECIFIC API RESPONSE TYPES ====================
 
 export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> {}
-export interface SystemRolesApiResponse extends ApiResponse<SystemRolesResponse> {}
-export interface UsersApiResponse extends ApiResponse<User[]> {}
+
+export interface RoleApiResponse extends ApiResponse<PaginatedData<Role>> {}
+export interface UsersApiResponse extends ApiResponse<PaginatedData<User>> {}
+
 export interface RoleTemplatesResponse extends ApiResponse<{ [key: string]: RoleTemplate }> {}
 export interface RolePermissionsApiResponse extends ApiResponse<RolePermissionsResponse> {}
 export interface UserPermissionsApiResponse extends ApiResponse<UserPermissionsResponse> {}
@@ -496,6 +515,7 @@ export interface RevokePermissionsResponse extends ApiResponse<BulkPermissionsRe
 export interface BulkRolePermissionsApiResponse extends ApiResponse<BulkRolePermissionsResponse> {}
 export interface BulkUserRolesApiResponse extends ApiResponse<BulkUserRolesResponse> {}
 export interface PermissionConflictApiResponse extends ApiResponse<PermissionConflictResponse> {}
+export type UserPaginationData = PaginatedData<User>;
 
 // ==================== CONSTANTS ====================
 

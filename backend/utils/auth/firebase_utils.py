@@ -27,7 +27,7 @@ class FirebaseManager:
                 })
                 '''
                 firebase_admin.initialize_app(options={
-                    "projectId": os.getenv("FIREBASE_PROJECT_ID", "demo-project"),
+                    "projectId": os.getenv("FIREBASE_PROJECT_ID", "local-svelte-app"),
                 })
                 print("Firebase Admin initialized for Emulator")
 

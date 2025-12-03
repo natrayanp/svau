@@ -9,7 +9,7 @@
     permissionActions, 
     selectedPermissionIds, 
     selectedPermissionsAnalysis 
-  } from '$lib/permission/stores_permission.ts'; // FIXED IMPORT PATH
+  } from '$lib/permission/stores_permission'; // FIXED IMPORT PATH
   import { PermissionUtils } from '$lib/permission/utils_permission'; // FIXED IMPORT PATH
 
   let roleName = $page.params.role;

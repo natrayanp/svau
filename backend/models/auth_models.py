@@ -175,10 +175,14 @@ class PermissionAuditResponse(BaseModel):
         from_attributes = True
 
 
-# Add the missing User class
-class User(UserResponse):
-    """User model for database operations"""
-    model_config = ConfigDict(from_attributes=True)
-    
-    # You can add any additional fields needed for the User class
-    roles: Optional[List[str]] = None
+
+class User(BaseModel):
+    user_id: int
+    uid: str
+    email: EmailStr
+    display_name: Optional[str] = None
+    org_id: int
+    email_verified: Optional[bool] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    roles: List[str] = []

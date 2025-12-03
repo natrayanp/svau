@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
@@ -8,8 +8,11 @@ from dotenv import load_dotenv
 # Import routes
 from routes.auth import auth_routes, permission_routes, role_routes
 from routes.system import db_analytics_routes
+from utils.api.api_response_middleware import GlobalResponseMiddleware
 
-#from models import HealthCheckResponse, ErrorResponse
+
+
+from models.api_models import  ErrorResponse
 from utils.database.database import DatabaseManager  # Import the actual class
 
 # Load environment variables
@@ -57,12 +60,16 @@ app.add_middleware(
 
 # Custom exception handler
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
-            detail=exc.detail,
-            error_type=type(exc).__name__
+            message=str(exc.detail),  # required top-level message
+            error={
+                "code": str(exc.status_code),  # custom error code
+                "message": str(exc.detail),
+                "details": {"exception_type": type(exc).__name__}
+            }
         ).model_dump()
     )
 '''
@@ -95,6 +102,7 @@ async def health_check():
 '''
 
 # Mount all routes
+app.add_middleware(GlobalResponseMiddleware)
 app.include_router(auth_routes.router)
 #app.include_router(user_routes.router)  
 app.include_router(permission_routes.router)

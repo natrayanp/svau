@@ -24,4 +24,4 @@ COPY fb/firebase.json ./
 EXPOSE 9099 9090 8080 5001 4000
 
 # Start emulator suite
-CMD ["firebase", "emulators:start", "--only", "auth,firestore,database,storage", "--project", "demo-svelte-app"]
+CMD ["firebase", "emulators:start", "--only", "auth,firestore,database,storage", "--project", "local-svelte-app"]

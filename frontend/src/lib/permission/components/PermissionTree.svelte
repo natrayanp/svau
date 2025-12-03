@@ -277,9 +277,12 @@
               </div>
               
               <div class="module-container bg-blue-50 border-2 border-blue-500 rounded-lg shadow-sm {isViewMode ? '' : 'hover:shadow-md transition-all duration-300 hover:-translate-y-1'} h-fit ml-2 mt-2">
-                <div 
+                <div
+                  role="button"
+                  tabindex="0"
                   class="node-header module-header bg-blue-600 text-white px-4 py-3 rounded-t-lg cursor-pointer select-none {isViewMode ? 'hover:bg-blue-600' : 'hover:bg-blue-700'} transition-colors flex items-center gap-3"
                   on:click={() => toggleModule(module.id)}
+                  on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleModule(module.id); } }}
                 >
                   <!-- Checkbox - Disabled in view mode -->
                   <input

@@ -1,20 +1,34 @@
+# utils/database/database.py
+
 import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
 from functools import lru_cache
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 import logging
+
+from utils.appwide.request_context import get_request_id
 
 logger = logging.getLogger(__name__)
 
+
+class DatabaseError(Exception):
+    """Custom exception for database errors."""
+    def __init__(self, message: str, query: str = None):
+        super().__init__(message)
+        self.message = message
+        self.query = query
+
+
 class DatabaseManager:
+    """Manages database connections and queries."""
+
     def __init__(self):
-        self.db_url = os.getenv('DATABASE_URL')
-    
+        self.db_url = os.getenv("DATABASE_URL")
+
     @contextmanager
     def get_connection(self):
-        """Centralized connection management"""
         conn = psycopg2.connect(self.db_url)
         conn.autocommit = False
         try:
@@ -24,100 +38,71 @@ class DatabaseManager:
             raise e
         finally:
             conn.close()
-    
-    # CENTRALIZED EXECUTION METHODS
-    
-    def execute_query(
-        self, 
-        query: str, 
-        params: Optional[tuple] = None,
-        fetch: bool = False
-    ) -> Union[int, List[Dict[str, Any]]]:
-        """
-        Execute query with centralized error handling and result formatting
-        """
+
+    def fetch_all(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         try:
             with self.get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                     cursor.execute(query, params)
-                    
-                    if fetch:
-                        # SELECT queries - just fetch, no commit needed
-                        result = [dict(row) for row in cursor.fetchall()]
-                        return result
-                    else:
-                        # INSERT/UPDATE/DELETE - commit required
-                        conn.commit()
-                        return cursor.rowcount
-                        
+                    rows = cursor.fetchall()
+                    return [dict(row) for row in rows]
         except psycopg2.Error as e:
-            logger.error(f"Database error: {e} - Query: {query}")
-            raise
-    
-    def execute_single(
-        self, 
-        query: str, 
-        params: Optional[tuple] = None
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Execute query and return single row
-        """
+            request_id = get_request_id()
+            logger.error(f"[{request_id}] DB error in fetch_all: {e} - Query: {query}")
+            raise DatabaseError(str(e), query=query)
+
+    def fetch_one(self, query: str, params: Optional[tuple] = None) -> Optional[Dict[str, Any]]:
         try:
             with self.get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                     cursor.execute(query, params)
                     row = cursor.fetchone()
-                    conn.commit()
                     return dict(row) if row else None
-                    
         except psycopg2.Error as e:
-            logger.error(f"Database error: {e} - Query: {query}")
-            raise
-    
-    def execute_insert(
-        self, 
-        query: str, 
-        params: Optional[tuple] = None
-    ) -> int:
-        """
-        Execute INSERT and return inserted ID
-        """
+            request_id = get_request_id()
+            logger.error(f"[{request_id}] DB error in fetch_one: {e} - Query: {query}")
+            raise DatabaseError(str(e), query=query)
+
+    def execute(self, query: str, params: Optional[tuple] = None) -> int:
+        """Execute INSERT/UPDATE/DELETE, returning affected row count."""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, params)
+                    affected = cursor.rowcount
+                    conn.commit()
+                    return affected
+        except psycopg2.Error as e:
+            request_id = get_request_id()
+            logger.error(f"[{request_id}] DB error in execute: {e} - Query: {query}")
+            raise DatabaseError(str(e), query=query)
+
+    def execute_insert(self, query: str, params: Optional[tuple] = None) -> Optional[int]:
+        """Execute INSERT ... RETURNING id."""
         try:
             with self.get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                     cursor.execute(query, params)
-                    if "RETURNING id" in query.upper():
-                        result = cursor.fetchone()
-                        inserted_id = result['id'] if result else None
+                    if "RETURNING" in query.upper():
+                        row = cursor.fetchone()
+                        inserted_id = row["id"] if row else None
                     else:
-                        inserted_id = cursor.lastrowid
+                        inserted_id = None
                     conn.commit()
                     return inserted_id
-                    
         except psycopg2.Error as e:
-            logger.error(f"Database error: {e} - Query: {query}")
-            raise
-    
-    def execute_update(
-        self, 
-        query: str, 
-        params: Optional[tuple] = None
-    ) -> bool:
-        """
-        Execute UPDATE and return success status
-        """
-        try:
-            rowcount = self.execute_query(query, params, fetch=False)
-            return rowcount > 0
-        except psycopg2.Error as e:
-            logger.error(f"Database error: {e} - Query: {query}")
-            raise
+            request_id = get_request_id()
+            logger.error(f"[{request_id}] DB error in execute_insert: {e} - Query: {query}")
+            raise DatabaseError(str(e), query=query)
+
 
 # Singleton instance
+from functools import lru_cache
+
 @lru_cache()
 def get_db_manager():
     return DatabaseManager()
 
-# FastAPI dependency
+
 def get_db():
     return get_db_manager()

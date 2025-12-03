@@ -197,6 +197,7 @@ GET_USER_ROLE = "SELECT role_key FROM user_roles WHERE user_id = %s"
 # DEFAULT PERMISSIONS QUERY
 GET_DEFAULT_PERMISSIONS = "SELECT id FROM permissions WHERE power_level <= 20 AND is_active = TRUE ORDER BY power_level LIMIT 5"
 
+#/structure
 PERMISSION_STRUCTURE_QUERY = """
 WITH module_data AS (
     SELECT 
@@ -434,32 +435,35 @@ FROM role_details
 
 ORGANIZATION_USERS_QUERY="""
 WITH requester_org AS (
-    SELECT organization_id
+    SELECT org_id
     FROM users
-    WHERE id = $1
+    WHERE user_id = %s
 )
 SELECT 
-    u.id,
+    u.user_id,
     u.uid,
     u.email,
     u.display_name,
-    u.organization_id,
+    u.org_id,
     u.email_verified,
     u.created_at,
     u.updated_at,
     COALESCE(
-      json_agg(r.role_key) FILTER (WHERE r.role_key IS NOT NULL),
-      '[]'
-    ) AS roles
+        json_agg(r.role_key) FILTER (WHERE r.role_key IS NOT NULL),
+        '[]'
+    ) AS roles,
+    COUNT(*) OVER() AS total_count  -- total rows without LIMIT
 FROM users u
-JOIN requester_org ro ON u.organization_id = ro.organization_id
-JOIN organizations o ON u.organization_id = o.id
+JOIN requester_org ro ON u.org_id = ro.org_id
+JOIN organizations o ON u.org_id = o.org_id
 LEFT JOIN user_roles ur 
-  ON u.id = ur.user_id AND u.organization_id = ur.organization_id
+    ON u.user_id = ur.user_id AND u.org_id = ur.org_id
 LEFT JOIN roles r 
-  ON ur.role_key = r.role_key AND ur.organization_id = r.organization_id
+    ON ur.role_key = r.role_key AND ur.org_id = r.org_id
 WHERE o.is_active = TRUE
-GROUP BY u.id, u.uid, u.email, u.display_name, u.organization_id, u.email_verified, u.created_at, u.updated_at;
+GROUP BY u.user_id, u.uid, u.email, u.display_name, u.org_id, u.email_verified, u.created_at, u.updated_at
+ORDER BY u.user_id
+LIMIT %s OFFSET %s;
 """
 
 

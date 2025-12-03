@@ -29,7 +29,8 @@ services:
       POSTGRES_USER: portfoliouser
       POSTGRES_PASSWORD: portfoliopass
       NODE_ENV: development
-      FIREBASE_EMULATOR_HOST: localhost:9099
+      FIREBASE_PROJECT_ID: local-svelte-app
+      FIREBASE_EMULATOR_HOST: firebase-emulator:9099
     depends_on:
       db:
         condition: service_healthy

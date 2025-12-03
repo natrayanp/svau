@@ -39,12 +39,15 @@ import type {
 } from './types_permission';
 import MOCK_DATA from './Mockdata/permissions_mockdata.json';
 
-const PERMISSION_BASE_URL = '/auth-api/permissions';
+import type { PaginatedData } from './types_permission';
+
+
+const PERMISSION_PREFIX_URL = '/auth-api/permissions';
 
 class PermissionApi extends BaseApi {
   constructor() {
-    super(PERMISSION_BASE_URL);
-    
+    super(PERMISSION_PREFIX_URL);
+    console.log("inside permission",this.useMock);
     
   if (this.useMock) {
     this.setMockResponses({
@@ -212,18 +215,19 @@ class PermissionApi extends BaseApi {
     return response.data;
   }
 
+  /*
   // Permission Structure
   async getPermissionStructure(): Promise<PermissionStructure> {
     const response = await this.request<PermissionStructureResponse>('/structure');
     return this.handleResponse(response);
   }
 
-  async getUsers(): Promise<User[]> {
+async getUsers(page = 1, page_size = 20): Promise<PaginatedData<User>> {
     const response = await this.request<UsersApiResponse>('/users');
     const data = this.handleResponse(response);
-    return data; // data is User[]
-  }
-
+    return data; // data is { items: User[], total, page, ... }
+}
+*/
   // User Permissions - Backend returns string IDs, no conversion needed
   async getUserPermissions(userId: number): Promise<UserPermissionsResponse> {
     const response = await this.request<UserPermissionsApiResponse>(`/user/${userId}`);

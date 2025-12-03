@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
+
 # ==================== PERMISSION STRUCTURE MODELS ====================
 
 class ActionDetail(BaseModel):
@@ -107,9 +108,6 @@ class RoleTemplate(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 class RoleDetail(BaseModel):
     role_key: str
@@ -136,7 +134,7 @@ class RolesSummary(BaseModel):
     current_organization: int
     package_restrictions_applied: bool
 
-class OrganizationRolesResponse(BaseModel):
+class RoleModel(BaseModel):
     roles: List[RoleDetail]
     summary: RolesSummary
 
@@ -156,12 +154,12 @@ class HealthCheck(BaseModel):
 
 
 class UserModel(BaseModel):
-    id: int
+    user_id: int
     uid: str
     email: EmailStr
     display_name: Optional[str] = None
-    organization_id: int
-    email_verified: bool
+    org_id: int
+    email_verified: Optional[bool] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     roles: List[str] = []

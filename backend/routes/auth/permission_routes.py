@@ -1,15 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+# routers/permissions_router.py
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any, Optional
-from datetime import datetime
-
-from pydantic import ValidationError
-
-from utils.database import get_db
+from utils.database.database import DatabaseManager, get_db, DatabaseError
 from utils.auth.middleware import get_current_user
-from utils.auth.permissions import (
-    require_permission_id, ExplicitPermissionSystem, 
-    CommonPermissionIds, RolePermissions, ROLE_TEMPLATES
-)
+from fastapi import Query
 from models.auth_models import (
     UserPermissionsRequest, UserPermissionsResponse, SuccessResponse,
     User, PermissionStructureAPIResponse, RolePermissionsResponse,
@@ -17,130 +11,165 @@ from models.auth_models import (
     PermissionValidationResponse, AllowedPermissionsResponse,
     PowerAnalysisResponse, RoleTemplate
 )
-from models.permission_models import (PermissionStructure,UserModel)
-from models.api_models import (ApiResponse)
+from utils.auth.permissions import require_permission_id, CommonPermissionIds
 
+from models.permission_models import (PermissionStructure,UserModel,RoleModel)
+
+from models.api_models import ApiResponse,PaginatedData
+from utils.appwide.errors import AppException
+import logging
 from utils.database.query_manager import permission_query
 
-
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth-api/permissions", tags=["permissions"])
 
-# ============ CONSISTENT RESPONSE HELPERS ============
-def success_response(data: Any = None, message: str = "Success") -> Dict[str, Any]:
-    """Consistent success response structure"""
-    response = {"success": True, "message": message}
-    if data is not None:
-        response["data"] = data
-    return response
 
-def error_response(message: str) -> Dict[str, Any]:
-    """Consistent error response structure"""
-    return {"success": False, "message": message}
-
-# # ============ PERMISSION STRUCTURE ENDPOINTS ============
+# --------------------------
+# PERMISSION STRUCTURE ENDPOINT
+# --------------------------
 @router.get("/structure", response_model=ApiResponse[PermissionStructure])
 async def get_permission_structure(
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
-    db = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db)
 ):
     """
-    Get complete permission structure as JSON from database
-    
-    Returns:
-        ApiResponse[PermissionStructure]: Standardized response with permission structure
+    Fetch complete permission structure from the database.
+
+    - Fetches the current authenticated user.
+    - Enforces ADMIN_ACCESS permission explicitly.
+    - Returns structured JSON wrapped in ApiResponse.
+    - Handles database and application errors consistently.
     """
+    # Explicitly enforce permission for clarity
+    require_permission_id(CommonPermissionIds.ADMIN_ACCESS)(current_user)
+    
     try:
-        # Single query returns complete hierarchical JSON
-        result = db.execute_single(
-            permission_query("PERMISSION_STRUCTURE_QUERY"), 
-            fetch=True
-        )
-        
-        if not result or not result.get('permission_structure'):
-            return not_found_error(
-                resource="Permission structure",
-                message="No permission structure found in database"
+        # Replace with actual query or use your permission_query function        
+        result = db.fetch_all(permission_query("PERMISSION_STRUCTURE_QUERY"))
+
+        if not result or 'permission_structure' not in result:
+            raise AppException(
+                message="Permission structure not found",
+                code="PERMISSION_STRUCTURE_NOT_FOUND"
             )
-        
-        structure_data = result['permission_structure']
-        
-        # Validate with Pydantic model
-        validated_structure = PermissionStructure(**structure_data)
-        
-        return success_response(
-            data=validated_structure,
-            message="Permission structure loaded successfully"
+
+        return result['permission_structure']
+
+    except DatabaseError as e:
+        logger.error(f"Database error fetching permission structure: {e.message}, query: {e.query}")
+        raise AppException(
+            message="Could not load permission structure",
+            code="DB_PERMISSION_STRUCTURE_ERROR"
         )
-            
+    except AppException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to load permission structure: {str(e)}")
-        return error_response(
-            message="Failed to load permission structure",
-            error_code="LOAD_ERROR",
-            error_details={"internal_error": str(e)},
+        logger.exception(f"Unexpected error in get_permission_structure: {e}")
+        raise AppException(
+            message="An unexpected error occurred",
+            code="PERMISSION_STRUCTURE_UNKNOWN_ERROR"
         )
 
 
+# --------------------------
+# ORGANIZATION USERS ENDPOINT
+# --------------------------
+#@router.get("/users", response_model=ApiResponse[List[UserModel]])
 
-# ============ ORGANIZATION USERS OVERVIEW give all the users in the organisation ============
-@router.get("/users", response_model=ApiResponse[List[UserModel]])
+@router.get("/users", response_model=PaginatedData[UserModel])
 async def get_organization_users(
-    current_user: User = Depends(get_current_user),  # 👈 GET CURRENT USER
-    db = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
 ):
-    """Get active users for current user's organization with their roles"""
+    """
+    Get active users for the current user's organization with their roles, paginated.
+    """
+    offset = (page - 1) * page_size
+
     try:
-        # Pass current user ID to the query
-        result = db.execute_single(
+        users = db.fetch_all(
             permission_query("ORGANIZATION_USERS_QUERY"),
-            (current_user.id,),  # 👈 PASS USER ID AS PARAMETER
-            fetch=True
+            (current_user.user_id, page_size, offset)
         )
-        
-        if result and result['users_data']:
-            return success_response(
-                result['users_data'],
-                "Organization users loaded successfully"
+
+        if not users:
+            raise AppException(
+                message="No users found for your organization",
+                code="ORG_USERS_NOT_FOUND"
             )
-        else:
-            return error_response("No users found for your organization")
-            
+
+        total = users[0]["total_count"] if users else 0
+        items = [{k: v for k, v in user.items() if k != "total_count"} for user in users]
+
+        return PaginatedData(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=(total + page_size - 1) // page_size,
+            has_next=(offset + page_size) < total,
+            has_prev=offset > 0
+        )
+
+    except DatabaseError as e:
+        logger.error(f"Database error fetching organization users: {e.message}, query: {e.query}")
+        raise AppException(
+            message="Could not load organization users",
+            code="DB_ORG_USERS_ERROR"
+        )
+    except AppException:
+        raise
     except Exception as e:
-        return error_response(f"Failed to load users: {str(e)}")
+        logger.exception(f"Unexpected error in get_organization_users: {e}")
+        raise AppException(
+            message="An unexpected error occurred",
+            code="ORG_USERS_UNKNOWN_ERROR"
+        )
 
 
 
-# ============ SYSTEM ROLES OVERVIEW ============
-@router.get("/roles")
+# --------------------------
+# ORGANIZATION ROLES ENDPOINT
+# --------------------------
+@router.get("/roles", response_model=ApiResponse[List[RoleModel]])
 async def get_organization_roles(
-    current_user: User = Depends(get_current_user),  # 👈 GET CURRENT USER
-    db = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db)
 ):
-    """Get roles for current user's organization with package filtering"""
-    print('inside roles')
+    """
+    Get roles for the current user's organization with package filtering.
+    Follows structured error handling like /structure and /users.
+    """
     try:
-        # Pass current user ID to the query
-        result = db.execute_single(
-            permission_query("ORGANIZATION_ROLES_QUERY"),
-            (current_user.id,),  # 👈 PASS USER ID AS PARAMETER
-            fetch=True
-        )
-        
-        if result and result['roles_data']:
-            return success_response(
-                result['roles_data'],
-                "Organization roles loaded successfully"
+
+        result = db.fetch_all(permission_query("ORGANIZATION_ROLES_QUERY"),
+            (current_user.id,),)
+
+        if not result and result['roles_data']:
+            raise AppException(
+                message="No roles found for your organization",
+                code="ORG_ROLES_NOT_FOUND"
             )
-        else:
-            return error_response("No roles found for your organization")
-            
+
+        return result['roles_data']
+
+    except DatabaseError as e:
+        logger.error(f"Database error fetching organization roles: {e.message}, query: {e.query}")
+        raise AppException(
+            message="Could not load organization roles",
+            code="DB_ORG_ROLES_ERROR"
+        )
+    except AppException:
+        raise
     except Exception as e:
-        return error_response(f"Failed to load roles: {str(e)}")
-    
-
-
-
+        logger.exception(f"Unexpected error in get_organization_roles: {e}")
+        raise AppException(
+            message="An unexpected error occurred",
+            code="ORG_ROLES_UNKNOWN_ERROR"
+        )
 
 
 # ============ ROLE PERMISSION MANAGEMENT ============

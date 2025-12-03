@@ -1,4 +1,5 @@
 {
+  "projectId": "local-svelte-app",
   "emulators": {
     "auth": {
       "port": 9099,
