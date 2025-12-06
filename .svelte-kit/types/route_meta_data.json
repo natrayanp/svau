@@ -1,0 +1,68 @@
+{
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/api/users": [
+		"src/routes/api/users/+server.ts"
+	],
+	"/api/users/[uid]": [
+		"src/routes/api/users/[uid]/+server.ts"
+	],
+	"/auth": [
+		"src/routes/auth/+page.server.js",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/auth/admin": [
+		"src/routes/auth/admin/+page.server.js",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/auth/dashboard": [
+		"src/routes/auth/dashboard/+page.server.js",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/auth/profile": [
+		"src/routes/auth/profile/+page.server.js",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/analysis": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/analysis/[role]": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/roles": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/roles/new": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/roles/[role]": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/users": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/permission/users/[userId]": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.server.ts"
+	]
+}
