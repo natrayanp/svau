@@ -10,6 +10,8 @@ import type {
   PermissionConflictResponse
 } from './types_permission';
 
+import type {RolePermissions} from './stores/types_permission';
+
 export class PermissionUtils {
   private static permissionCache: Map<string, PermissionDetail> = new Map();  // ← CHANGED TO STRING
   private static conflictCache: Map<string, PermissionConflict[]> = new Map();
@@ -83,19 +85,58 @@ export class PermissionUtils {
   }
 
   // Power Constraint Calculations
-  static getMaxPower(permissionIds: string[], permissionStructure: PermissionStructure): number {  // ← CHANGED TO STRING
-    let maxPower = 0;
-    
-    for (const permissionId of permissionIds) {
-      const permission = this.findPermissionById(permissionId, permissionStructure);
-      if (permission && permission.power_level > maxPower) {
-        maxPower = permission.power_level;
-      }
+    static getMaxPower(
+      rolePermissions: RolePermissions[], 
+      permissionStructure: PermissionStructure
+    ): number {
+      let maxPower = 0;
+      
+      for (const rolePerm of rolePermissions) {
+        const { permissstruct_id, granted_action_key } = rolePerm;
+        
+        // Find the structure (module, menu, or card)
+        const structure = this.findStructureById(permissstruct_id, permissionStructure);
+        
+        if (structure && structure.allowed_actions) {
+          // Check each granted action
+          for (const actionKey of granted_action_key) {
+            const action = structure.allowed_actions.find(a => a.action_key === actionKey);
+            if (action && action.power_level > maxPower) {
+              maxPower = action.power_level;
+            }
+          }
+        }
     }
     
     return maxPower;
   }
 
+  static findStructureById(
+    structureId: string, 
+    permissionStructure: PermissionStructure
+  ): ModuleDetail | MenuDetail | CardDetail | null {
+    
+    // Search in modules
+    for (const module of permissionStructure.modules) {
+      if (module.id === structureId) return module;
+      
+      // Search in module's menus
+      if (module.menus) {
+        for (const menu of module.menus) {
+          if (menu.id === structureId) return menu;
+          
+          // Search in menu's cards
+          if (menu.cards) {
+            for (const card of menu.cards) {
+              if (card.id === structureId) return card;
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
+  }
   static getAllowedPermissions(
     parentPermissionIds: string[],  // ← CHANGED TO STRING
     availablePermissions: PermissionDetail[],
@@ -463,5 +504,34 @@ static findCardById(cardId: string, permissionStructure: PermissionStructure): C
   }
   return null;
 }
+
+  static getPowerDistribution(
+    selectedPermissionIds: string[],
+    permissionStructure: PermissionStructure
+  ): { low: number; medium: number; high: number; critical: number } {
+    if (!selectedPermissionIds.length || !permissionStructure?.permissions_list) {
+      return { low: 0, medium: 0, high: 0, critical: 0 };
+    }
+
+    const distribution = { low: 0, medium: 0, high: 0, critical: 0 };
+    
+    selectedPermissionIds.forEach(permissionId => {
+      const permission = permissionStructure.permissions_list[permissionId];
+      if (permission) {
+        const powerLevel = permission.power_level || 0;
+        if (powerLevel <= 25) {
+          distribution.low++;
+        } else if (powerLevel <= 50) {
+          distribution.medium++;
+        } else if (powerLevel <= 75) {
+          distribution.high++;
+        } else {
+          distribution.critical++;
+        }
+      }
+    });
+    
+    return distribution;
+  }
 
 }

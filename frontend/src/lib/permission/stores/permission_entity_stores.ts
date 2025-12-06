@@ -1,6 +1,6 @@
 // permissionStores.ts
 import { createEntityStore } from '../../common/entityStoreFactory';
-import type { User, Role } from '../types_permission';
+import type { User, Role } from './types_permission';
 import { permissionApi } from './api_permission';
 
 // ------------------------------
@@ -8,16 +8,20 @@ import { permissionApi } from './api_permission';
 // ------------------------------
 export const usersStore = createEntityStore<User>(
   'users',
-  async ({ offset, limit, filter, sort }) => {
-    // backend fetch expects offset/limit (+ optional filter/sort)
-    const response = await permissionApi.getUsers(offset, limit, filter, sort);
-    return response; // PaginatedData<User>
-  },
+  async (params) => permissionApi.getUsers(params),
   (user) => user.user_id,
   100,
   5000,
+   {
+    searchable: ['display_name', 'email', 'username'],
+    sortable: ['display_name', 'email', 'created_at'],
+    arrayFields: ['roles', 'permissions']
+    },
   //permissionApi.createUser,
-  //permissionApi.updateUser,
+  undefined,
+  //permissionApi.updateUsers,
+  async (params) => permissionApi.updateUsersRole(params),
+  async (params) => permissionApi.deleteUserRole(params)
   //permissionApi.deleteUser
 );
 
@@ -26,13 +30,15 @@ export const usersStore = createEntityStore<User>(
 // ------------------------------
 export const rolesStore = createEntityStore<Role>(
   'roles',
-  async ({ offset, limit, filter, sort }) => {
-    const response = await permissionApi.getSystemRoles(offset, limit, filter, sort);
-    return response; // PaginatedData<Role>
-  },
+  async (params) => permissionApi.getRoles(params),
   (role) => role.role_key,
   100,
   5000,
+  {
+    searchable: ['role_key', 'description'],
+    sortable: ['power_level', 'permission_count'],
+    arrayFields: ['permissions', 'category_access'] 
+  },
   //permissionApi.createRole,
   //permissionApi.updateRole
   // deleteFn omitted → deleteItem won’t exist

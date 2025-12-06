@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { rolesStore, usersStore } from '$lib/permission/stores/permission_entity_stores';
-  import type { Role, User } from '$lib/permission/types_permission';
+  import type { Role, User } from '$lib/permission/stores/types_permission';
 
   // Export props for customization
   export let showHeader = true;

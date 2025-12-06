@@ -1,3 +1,4 @@
+//controls.ts
 import { writable, derived, get, type Writable } from 'svelte/store';
 import type { PaginatedData } from '$lib/permission/types_permission';
 
@@ -181,17 +182,81 @@ export function useMutations<T>(store: {
   ) => Promise<T | T[]>;
   deleteItem?: (id: string | number | (string | number)[]) => Promise<void>;
 }) {
-  async function add(data: Partial<T> | Partial<T>[]) {
-    return store.addItem?.(data);
+  // Add new entity or entities
+  async function addItem(data: Partial<T> | Partial<T>[]) {
+    if (!store.addItem) {
+      throw new Error("addItem not implemented on store");
+    }
+    return store.addItem(data);
   }
-  async function update(
-    id: string | number | (string | number)[],
-    changes: Partial<T> | Partial<T>[]
-  ) {
-    return store.updateItem?.(id, changes);
+
+// Update one or many entities (always bulk format)
+/**
+ * Generic update function.
+ * Accepts either a single entity or an array of entities.
+ * Caller decides the payload type via generics.
+ */
+async function updateItem<U>(
+  id: string | number | (string | number)[],
+  changes: U | U[]
+) {
+  if (!store.updateItem) {
+    throw new Error("updateItem not implemented on store");
   }
-  async function remove(id: string | number | (string | number)[]) {
-    return store.deleteItem?.(id);
-  }
-  return { add, update, remove };
+  return store.updateItem(id, changes);
 }
+
+
+// Delete one or many entities
+async function deleteItem<U>(
+    id: (string | number)[]
+) {
+    if (!store.deleteItem) {
+      throw new Error("deleteItem not implemented on store");
+    }
+    return store.deleteItem(id);
+  }
+
+  return { addItem, updateItem, deleteItem };
+}
+
+// ------------------------------
+// Unified lookup helper with filter/sort
+// ------------------------------
+/* Example
+        import { useLookup } from './controls';
+        import { usersStore } from './entityStoreFactory';
+
+        const { getEntities } = useLookup(usersStore);
+
+        // Single ID lookup
+        const user = await getEntities(123);
+
+        // Multiple IDs lookup
+        const users = await getEntities([101, 102, 103]);
+
+        // Lookup with filter/sort
+        const filteredUsers = await getEntities([101, 102, 103], {
+        queryFilter: { role: 'admin' },
+        querySort: { display_name: 'asc' }
+        });
+*/
+export function useLookup<T>(store: {
+  getById: (id: string | number, opts?: { queryFilter?: any; querySort?: any }) => Promise<T | null>;
+  getManyByIds: (ids: (string | number)[], opts?: { queryFilter?: any; querySort?: any }) => Promise<T[]>;
+}) {
+  async function getEntities(
+    ids: string | number | (string | number)[],
+    opts?: { queryFilter?: any; querySort?: any }
+  ) {
+    console.log(ids);
+    if (Array.isArray(ids)) {
+      return store.getManyByIds(ids, opts);
+    } else {
+      return store.getById(ids, opts);
+    }
+  }
+
+  return { getEntities };
+}
+        

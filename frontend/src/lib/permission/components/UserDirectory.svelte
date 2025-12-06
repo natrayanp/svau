@@ -2,12 +2,15 @@
   import { onMount } from 'svelte';
   import { page as pageStore } from '$app/stores';
   import { usersStore, rolesStore } from '$lib/permission/stores/permission_entity_stores';
-  import { usePageSelection, usePaginationControls, buildFilter } from '$lib/common/controls';
+  import { usePageSelection, usePaginationControls, buildFilter, useMutations, useLookup } from '$lib/common/controls';
   import type { User } from '$lib/permission/types_permission';
 
   // Extract inner Svelte writables exposed by the factory
   const { pagination: usersPagination, loading: usersLoading } = usersStore;
   const { pagination: rolesPagination } = rolesStore;
+
+    const { deleteItem:userDelete } = useMutations(usersStore);
+    const { getEntities:getUserbyid } = useLookup(usersStore);
 
   // Props
   export let showHeader: boolean = true;
@@ -46,6 +49,8 @@ const {
   setPageSize
 } = usePaginationControls(usersStore);
 
+
+
   // Debounce
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   const SEARCH_DEBOUNCE_MS = 300;
@@ -71,10 +76,28 @@ const {
 
   // Build filter using generic builder
   function applyFilter() {
-    const filter = buildFilter<User>(
-      { q: searchTerm.trim(), role: selectedRole },
-      ['q', 'role']
-    );
+    console.log('🔍 applyFilter called with:', {
+      searchTerm,
+      selectedRole,
+      currentPage: $currentPage,
+      pageSize: $pageSize
+    });
+    
+    const filter: any = {};
+    
+    // Add search term
+    if (searchTerm.trim()) {
+      filter.q = searchTerm.trim();
+    }
+    
+    // Add role filter (if not "all")
+    if (selectedRole && selectedRole !== 'all') {
+      filter.roles = selectedRole;  // Make sure this is the correct field name
+      console.log('✅ Role filter added:', filter.roles);
+    }
+    
+    console.log('📤 Filter being sent to store:', filter);
+    
     usersStore.setView($currentPage, $pageSize, { queryFilter: filter });
   }
 
@@ -94,7 +117,9 @@ const {
   }
 
   function handleRoleChange(e: Event) {
-    selectedRole = (e.target as HTMLSelectElement).value;
+    const newRole = (e.target as HTMLSelectElement).value;
+    console.log('🔄 Role changed from', selectedRole, 'to', newRole);
+    selectedRole = newRole;
     goToPage(1);
     loadUsers(1);
   }
@@ -117,8 +142,10 @@ const {
 
   // Select or deselect all users on the current page
   function toggleAllPageUsers() {
+    console.log(pagedUsers);
     toggleAllPageItems(pagedUsers);
   }
+
 
   // Stats
   $: userStats = {
@@ -130,11 +157,23 @@ const {
 
   const viewUser = (id: string) => onViewUser?.(id);
   const editUser = (id: string) => onEditUser?.(id);
-  const deleteUser = (id: string, name?: string) => {
-    if (confirm(`Delete user "${name ?? id}"?`)) {
-      usersStore.deleteItem?.(id);
-      loadUsers($currentPage);
-    }
+  const deleteUser = async(
+      users: (string | number)| (string | number) [], // Accepts individual or array
+  ) => {
+      const userArray = Array.isArray(users) ? users : [users];
+      if (userArray.length === 0) {
+          return;
+      }
+      let primaryname = userArray.length === 1?getUserbyid(userArray[0]):'';
+
+      const confirmationText = userArray.length === 1
+          ? `Delete user "${primaryname}"?`
+          : `Delete ${userArray.length} users?`;
+    
+      if (confirm(confirmationText)) {
+          userDelete?.(userArray); 
+          loadUsers($currentPage); 
+      }
   };
 
   // CSV export helpers remain unchanged
@@ -246,6 +285,12 @@ const {
               <span>{$allPageItemsSelected ? '☑' : $somePageItemsSelected ? '◩' : '☐'}</span>
               <span>{$allPageItemsSelected ? 'Deselect Page' : `Select Page (${pagedUsers.length})`}</span>
             </button>
+            {#if $somePageItemsSelected | $allPageItemsSelected }
+            <button on:click={() => deleteUser($selectedUserIds)}
+              class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 flex items-center space-x-2">
+              <span>{`Delete ${($selectedUserIds).length} Users`}</span>
+            </button>
+            {/if}
           {/if}
         </div>
 
@@ -353,7 +398,7 @@ const {
               <div class="flex justify-end space-x-2">
                 <button on:click={() => viewUser(user.user_id)} class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">👁️</button>
                 <button on:click={() => editUser(user.user_id)} class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100">✏️</button>
-                <button on:click={() => deleteUser(user.user_id, user.display_name)} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">🗑️</button>
+                <button on:click={() => deleteUser(user.user_id)} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">🗑️</button>
               </div>
             </td>
           </tr>

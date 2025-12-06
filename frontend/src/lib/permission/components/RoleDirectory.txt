@@ -1,26 +1,18 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
-  import {
-    systemRoles,
-    users,
-    loading,
-    permissionActions
-  } from '$lib/permission/stores_permission.ts';
-
-  import { PermissionUtils } from '$lib/permission/utils_permission';
+  import { rolesStore, usersStore } from '$lib/permission/stores/permission_entity_stores';
+  import type { Role, User } from '$lib/permission/stores/types_permission';
 
   // Export props for customization
   export let showHeader = true;
-  //export let compact = false;
   export let enableExport = true;
   export let fullWidth = false;
-  export let onViewRole = null; // NEW: View role callback
-  export let onEditRole = null; // NEW: Edit role callback
-  export let onCreateRole = null; // NEW: Create role callback
+  export let onViewRole: ((role: Role) => void) | null = null;
+  export let onEditRole: ((role: Role) => void) | null = null;
+  export let onCreateRole: (() => void) | null = null;
 
   /* ----------------------------------------------------------
-     Local UI State
+     UI state (drives store view)
   ----------------------------------------------------------- */
   let searchTerm = '';
   let selectedPowerLevel = 'all';
@@ -28,70 +20,67 @@
   let pageSize = 10;
 
   /* ----------------------------------------------------------
-     Safe derived data from stores
+     Extract inner Svelte stores from the store object
+     - rolesStore is an object with a `pagination` writable inside it
+     - we destructure that writable and use $rolesPagination in the template
   ----------------------------------------------------------- */
-  $: safeRoles = $systemRoles ?? [];
-  $: safeUsers = $users ?? [];
+  const { pagination: rolesPagination } = rolesStore;
+  const { pagination: usersPagination } = usersStore;
 
-  // Filter roles based on search and power level
-  $: filteredRoles = safeRoles.filter(role => {
-    const matchesSearch = searchTerm.trim() === '' || 
-      (role.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (role.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesPower = selectedPowerLevel === 'all' || 
+  /* ----------------------------------------------------------
+     Store-driven filtering and pagination
+     - We pass filter/sort to rolesStore.setView
+     - No local slicing/filtering of items
+  ----------------------------------------------------------- */
+  const roleFilter = (role: Role) => {
+    const term = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      term === '' ||
+      (role.display_name || '').toLowerCase().includes(term) ||
+      (role.description || '').toLowerCase().includes(term);
+
+    const matchesPower =
+      selectedPowerLevel === 'all' ||
       getPowerLevelRange(role.power_level || 0) === selectedPowerLevel;
-    
+
     return matchesSearch && matchesPower;
-  });
+  };
 
-  $: totalPages = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
-  $: paginatedRoles = filteredRoles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // Optional sort example: by display_name ascending
+  const roleSort = (a: Role, b: Role) => {
+    const an = (a.display_name || '').toLowerCase();
+    const bn = (b.display_name || '').toLowerCase();
+    return an.localeCompare(bn);
+  };
 
-  // Get users count for each role
-  $: roleUserCounts = safeRoles.reduce((acc, role) => {
-    const usersWithRole = safeUsers.filter(user => 
-      Array.isArray(user.roles) && user.roles.includes(role.role_key)
-    );
-    acc[role.role_key] = usersWithRole.length;
-    return acc;
-  }, {});
-
-  // Power level filter options
-  $: powerLevelOptions = [
-    { value: 'all', label: 'All Power Levels' },
-    { value: 'low', label: 'Low (1-30)' },
-    { value: 'medium', label: 'Medium (31-60)' },
-    { value: 'high', label: 'High (61-80)' },
-    { value: 'critical', label: 'Critical (81-100)' }
-  ];
+  // Apply view whenever page/size or filters change
+  $: {
+    // call setView reactively when these inputs change
+    rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort });
+  }
 
   /* ----------------------------------------------------------
      Data loading
   ----------------------------------------------------------- */
   onMount(() => {
-    // Load roles and users if not already loaded
-    if (safeRoles.length === 0) {
-      permissionActions.loadSystemRoles();
-    }
-    if (safeUsers.length === 0) {
-      permissionActions.loadUsers();
-    }
+    // Load initial views (roles + users)
+    rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort });
+    usersStore.setView(1, pageSize);
   });
 
   /* ----------------------------------------------------------
-     Helpers
+     Helper functions
   ----------------------------------------------------------- */
-  const getPowerLevelRange = (power) => {
+  const getPowerLevelRange = (power: number) => {
     if (power <= 30) return 'low';
     if (power <= 60) return 'medium';
     if (power <= 80) return 'high';
     return 'critical';
   };
 
-  const getPowerLevelColor = (power) => {
+  const getPowerLevelColor = (power: number) => {
     const range = getPowerLevelRange(power);
-    const colors = {
+    const colors: Record<string, string> = {
       low: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       medium: 'bg-amber-100 text-amber-800 border-amber-200',
       high: 'bg-orange-100 text-orange-800 border-orange-200',
@@ -100,75 +89,116 @@
     return colors[range] || colors.low;
   };
 
-  const getPowerLevelIcon = (power) => {
+  const getPowerLevelIcon = (power: number) => {
     if (power <= 30) return '🟢';
     if (power <= 60) return '🟡';
     if (power <= 80) return '🟠';
     return '🔴';
   };
 
-  const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) currentPage = page;
-  };
+  function goToPage(page: number) {
+    const totalPages = $rolesPagination.total_pages || 1;
+    if (page >= 1 && page <= totalPages) {
+      currentPage = page;
+      rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort });
+    }
+  }
 
-  const changePageSize = (event) => {
-    pageSize = parseInt(event.target.value);
+  function changePageSize(event: Event) {
+    pageSize = parseInt((event.target as HTMLSelectElement).value, 10);
     currentPage = 1;
-  };
+    rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort });
+  }
 
   /* ----------------------------------------------------------
-     Role Actions
+     Role actions (store mutations)
   ----------------------------------------------------------- */
-  const deleteRole = (roleKey, roleName) => {
-    if (confirm(`Are you sure you want to delete role "${roleName}"? This action cannot be undone.`)) {
-      console.log(`Deleting role ${roleKey}`);
-      // permissionActions.deleteRole(roleKey);
+  const deleteRole = async (roleKey: string, roleName: string) => {
+    if (rolesStore.deleteItem && confirm(`Delete role "${roleName}"? This cannot be undone.`)) {
+      await rolesStore.deleteItem(roleKey);
+      // Refresh current view after mutation
+      rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort });
     }
   };
 
-  const duplicateRole = (role) => {
-    console.log(`Duplicating role ${role.role_key}`);
-    // permissionActions.duplicateRole(role);
+  const duplicateRole = (role: Role) => {
+    // Example duplication: create a new role with modified fields
+    if (rolesStore.addItem) {
+      rolesStore
+        .addItem({
+          display_name: `${role.display_name || 'Role'} Copy`,
+          description: role.description,
+          power_level: role.power_level,
+          permission_count: role.permission_count,
+          is_system_role: false
+        } as Partial<Role>)
+        .then(() => rolesStore.setView(currentPage, pageSize, { filter: roleFilter, sort: roleSort }));
+    }
   };
 
   /* ----------------------------------------------------------
-     CSV Export
+     CSV export
   ----------------------------------------------------------- */
-  const exportCSV = (filename, rows) => {
-    const csv = rows.map(r => r.map(x => `"${x}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const exportCSV = (filename: string, rows: (string | number)[][]) => {
+    const csv = rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();
   };
 
+  // Reactive derived arrays from the inner pagination stores
+  $: safeRoles = $rolesPagination.items ?? [];
+  $: safeUsers = $usersPagination.items ?? [];
+
+  // Users count per role computed from usersStore
+  $: roleUserCounts = safeRoles.reduce((acc, role) => {
+    const usersWithRole = safeUsers.filter(
+      (user: User) => Array.isArray(user.roles) && user.roles.includes(role.role_key)
+    );
+    acc[role.role_key] = usersWithRole.length;
+    return acc;
+  }, {} as Record<string, number>);
+
   const exportAllRolesCSV = () => {
     const rows = [
-      ["Role Name", "Description", "Power Level", "Users", "Permissions", "System Role"],
+      ['Role Name', 'Description', 'Power Level', 'Users', 'Permissions', 'System Role'],
       ...safeRoles.map(role => [
-        role.display_name ?? '', 
-        role.description ?? '', 
+        role.display_name ?? '',
+        role.description ?? '',
         role.power_level ?? 0,
         roleUserCounts[role.role_key] || 0,
         role.permission_count || 0,
         role.is_system_role ? 'Yes' : 'No'
       ])
     ];
-    exportCSV("all_roles.csv", rows);
+    exportCSV('all_roles.csv', rows);
   };
 
-  // Calculate role statistics
+  /* ----------------------------------------------------------
+     Stats summary (from current items and total)
+  ----------------------------------------------------------- */
   $: roleStats = {
-    total: safeRoles.length,
+    total: $rolesPagination.total || 0,
     system: safeRoles.filter(r => r.is_system_role).length,
     custom: safeRoles.filter(r => !r.is_system_role).length,
     highPower: safeRoles.filter(r => (r.power_level || 0) >= 80).length,
     lowUsage: safeRoles.filter(r => (roleUserCounts[r.role_key] || 0) === 0).length
   };
-</script>
 
+  /* ----------------------------------------------------------
+     Power level options (UI)
+  ----------------------------------------------------------- */
+  $: powerLevelOptions = [
+    { value: 'all', label: 'All Power Levels' },
+    { value: 'low', label: 'Low (1-30)' },
+    { value: 'medium', label: 'Medium (31-60)' },
+    { value: 'high', label: 'High (61-80)' },
+    { value: 'critical', label: 'Critical (81-100)' }
+  ];
+</script>
 <!-- Full Width Container -->
 <div class="{fullWidth ? 'w-full' : 'min-h-screen bg-gray-50'} {!fullWidth ? 'py-8' : ''}">
   <div class="{fullWidth ? 'w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}">
@@ -201,7 +231,7 @@
     {/if}
 
     <!-- Loading State -->
-    {#if $loading.roles}
+    {#if $rolesPagination.items.length === 0}
       <div class="flex justify-center items-center py-12">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         <span class="ml-4 text-gray-600">Loading roles...</span>
@@ -259,7 +289,7 @@
         </div>
 
         <div class="text-sm text-gray-500">
-          {filteredRoles.length} {filteredRoles.length === 1 ? 'role' : 'roles'} found
+          {$rolesPagination.total} {$rolesPagination.total === 1 ? 'role' : 'roles'} found
         </div>
       </div>
     </div>
@@ -279,7 +309,7 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            {#each paginatedRoles as role}
+            {#each $rolesPagination.items as role}
               <tr class="hover:bg-gray-50 transition-colors duration-150">
                 <!-- Role Info -->
                 <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -338,7 +368,7 @@
                     <!-- View Button -->
                     {#if onViewRole}
                       <button
-                        on:click={() => onViewRole(role.role_key)}
+                        on:click={() => onViewRole(role)}
                         class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors duration-200"
                         title="View Role Details"
                       >
@@ -349,7 +379,7 @@
                     <!-- Edit Button -->
                     {#if onEditRole}
                       <button
-                        on:click={() => onEditRole(role.role_key)}
+                        on:click={() => onEditRole(role)}
                         class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors duration-200"
                         title="Edit Role"
                       >
@@ -366,15 +396,17 @@
                       📋
                     </button>
 
-                    <!-- Delete Button (disabled for system roles) -->
-                    <button
-                      on:click={() => deleteRole(role.role_key, role.display_name)}
-                      disabled={role.is_system_role}
-                      class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                      title="{role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}"
-                    >
-                      🗑️
-                    </button>
+                    <!-- Delete Button (only if store supports it; disabled for system roles) -->
+                    {#if rolesStore.deleteItem}
+                      <button
+                        on:click={() => deleteRole(role.role_key, role.display_name)}
+                        disabled={role.is_system_role}
+                        class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        title={role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}
+                      >
+                        🗑️
+                      </button>
+                    {/if}
                   </div>
                 </td>
               </tr>
@@ -384,7 +416,7 @@
       </div>
 
       <!-- Empty State -->
-      {#if filteredRoles.length === 0}
+      {#if $rolesPagination.total === 0}
         <div class="text-center py-12 w-full">
           <div class="text-gray-400 text-6xl mb-4">👑</div>
           <h3 class="text-lg font-medium text-gray-900 mb-2">No roles found</h3>
@@ -409,50 +441,54 @@
     </div>
 
     <!-- Pagination -->
-    {#if filteredRoles.length > 0}
+    {#if $rolesPagination.total > 0}
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 w-full">
         <div class="text-sm text-gray-500 text-center sm:text-left">
-          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredRoles.length)} of {filteredRoles.length} roles
+          Showing {($rolesPagination.page - 1) * $rolesPagination.page_size + 1}
+          to {Math.min($rolesPagination.page * $rolesPagination.page_size, $rolesPagination.total)}
+          of {$rolesPagination.total} roles
         </div>
         <div class="flex items-center space-x-2">
           <button
-            on:click={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1}
+            on:click={() => goToPage($rolesPagination.page - 1)}
+            disabled={!$rolesPagination.has_prev}
             class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
           >
             Previous
           </button>
           <div class="flex items-center space-x-1">
-            {#each Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            {#each Array.from({ length: Math.min(5, $rolesPagination.total_pages) }, (_, i) => {
               let pageNum;
+              const totalPages = $rolesPagination.total_pages;
+              const currentPageLocal = $rolesPagination.page;
               if (totalPages <= 5) {
                 pageNum = i + 1;
-              } else if (currentPage <= 3) {
+              } else if (currentPageLocal <= 3) {
                 pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
+              } else if (currentPageLocal >= totalPages - 2) {
                 pageNum = totalPages - 4 + i;
               } else {
-                pageNum = currentPage - 2 + i;
+                pageNum = currentPageLocal - 2 + i;
               }
               return pageNum;
             }) as pageNum}
               <button
                 on:click={() => goToPage(pageNum)}
-                class:bg-indigo-600={currentPage === pageNum}
-                class:text-white={currentPage === pageNum}
+                class:bg-indigo-600={$rolesPagination.page === pageNum}
+                class:text-white={$rolesPagination.page === pageNum}
                 class="w-10 h-10 rounded-lg text-sm font-medium border transition-colors duration-200"
-                class:border-indigo-600={currentPage === pageNum}
-                class:border-gray-300={currentPage !== pageNum}
-                class:text-gray-700={currentPage !== pageNum}
-                class:hover:bg-gray-50={currentPage !== pageNum}
+                class:border-indigo-600={$rolesPagination.page === pageNum}
+                class:border-gray-300={$rolesPagination.page !== pageNum}
+                class:text-gray-700={$rolesPagination.page !== pageNum}
+                class:hover:bg-gray-50={$rolesPagination.page !== pageNum}
               >
                 {pageNum}
               </button>
             {/each}
           </div>
           <button
-            on:click={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            on:click={() => goToPage($rolesPagination.page + 1)}
+            disabled={!$rolesPagination.has_next}
             class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
           >
             Next
@@ -488,9 +524,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  .transition-all {
-    transition: all 0.3s ease;
-  }
-</style>

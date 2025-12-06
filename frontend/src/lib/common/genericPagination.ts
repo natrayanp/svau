@@ -99,24 +99,51 @@ export function createGenericPagination<T>({
     updatePaginationView(page, page_size, cache);
   }
 
-  function deleteItem(itemId: string | number) {
+ function deleteItem(itemIds: (string | number)[]) {
     const cache = get(cacheStore);
+    const idsToDelete = new Set(itemIds); // Use a Set for O(1) lookup efficiency
+    let itemsRemovedCount = 0;
 
+    // Iterate through all cached blocks
     for (const blockNumStr of Object.keys(cache)) {
-      const blockNum = Number(blockNumStr);
-      const block = cache[blockNum];
-      const idx = block.findIndex((u: T) => getId(u) === itemId);
-      if (idx !== -1) {
-        const newBlock = [...block];
-        newBlock.splice(idx, 1);
-        cache[blockNum] = newBlock;
-        break;
-      }
+        const blockNum = Number(blockNumStr);
+        const block = cache[blockNum];
+        let blockWasChanged = false;
+
+        // Filter the block to remove any items whose ID is in the idsToDelete Set
+        const newBlock = block.filter((u: T) => {
+            const currentId = getId(u);
+            if (idsToDelete.has(currentId)) {
+                blockWasChanged = true;
+                itemsRemovedCount++;
+                idsToDelete.delete(currentId); // Optimization: Remove ID from Set once processed
+                return false; // Exclude this item from the new block
+            }
+            return true; // Keep this item in the new block
+        });
+
+        // Only update the cache block if changes were made
+        if (blockWasChanged) {
+            cache[blockNum] = newBlock;
+        }
+
+        // Optimization: If all IDs have been found and processed, stop searching
+        if (idsToDelete.size === 0) {
+            break;
+        }
     }
 
+    // Update the reactive cache store
     cacheStore.set({ ...cache });
+
+    // Note: The total count update (p.total - id.length) must happen
+    // in the calling entityStoreFactory.ts, not here, as this function 
+    // doesn't know the store's global pagination state.
+
+    // Re-render the current view
     const { page, page_size } = get(paginationStore);
-    updatePaginationView(page, page_size, cache);
+    // Assuming updatePaginationView is an internal helper that triggers re-slicing
+    updatePaginationView(page, page_size, cache); 
   }
 
   async function fetchItemBlock(blockNum: number) {

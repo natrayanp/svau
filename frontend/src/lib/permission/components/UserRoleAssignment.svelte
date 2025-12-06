@@ -1,58 +1,56 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import {
-    users,
-    systemRoles,
-    loading,
-    permissionActions
-  } from '$lib/permission/stores_permission.ts';
-
+  import { UserUpdatePayload } from '$lib/permission/stores/types_permission';
+  import { usersStore, rolesStore } from '$lib/permission/stores/permission_entity_stores';
+  import { useMutations, useLookup } from '$lib/common/controls';
   import { PermissionUtils } from '$lib/permission/utils_permission';
 
-  // Clean props - no legacy support
-  export let userIds = [];
-  export let mode = 'single'; // 'single' | 'bulk' | 'maintenance'
-  export let showHeader = true;
-  export let onSave = null;
-  export let onCancel = null;
+  // Props
+  export let userIds: string[] = [];
+  export let mode: 'single' | 'bulk' | 'maintenance' = 'single';
+  export let showHeader: boolean = true;
+  export let onSave: ((roles: string[]) => void) | null = null;
+  export let onCancel: (() => void) | null = null;
+
+  // Extract inner Svelte writables exposed by the factory
+  const { pagination: usersPagination } = usersStore;
+  const { getEntities: getUsers } = useLookup(usersStore);
+
+  const { pagination: rolesPagination } = rolesStore;
+  const { getEntities: getRoles } = useLookup(rolesStore);
+
 
   // Internal state
-  let selectedRoles = new Set();
-  let selectedUsers = [];
-  let searchQuery = '';
+  let selectedRoles = new Set<string>();
+  let selectedUsers: any[] = [];
   let roleSearchQuery = '';
-  let userSearchResults = [];
   let saveLoading = false;
   let saveMessage = '';
-  let originalUserRoles = new Map();
+  let originalUserRoles = new Map<number, Set<string>>();
   let initialized = false;
   let expandedAdditionalFields = true;
-
-  // Additional fields state
+  let roleSearchResults = []; 
+  
+  let userSearchQuery = '';
+  let userSearchResults = [];
+  
+  // Additional fields (dummy for now)
   let additionalFields = {
-    department: '',
-    location: '',
-    status: 'active',
-    statusEffectiveFrom: ''
-  };
-
-  // Dummy user data for additional fields
-  const dummyUserData = {
     department: 'Sales',
     location: 'New York',
     status: 'active',
     statusEffectiveFrom: '2024-01-15'
   };
 
-  // Safe derived data from stores
-  $: safeUsers = $users ?? [];
-  $: safeRoles = $systemRoles ?? [];
-
-  // Check if in view mode (single user only, all fields disabled)
+  // Mutation helpers
+  const { addItem, updateItem } = useMutations(usersStore);
+  const {  loading: usersLoading } = usersStore;
+  // Derived data
+  //$: safeUsers = $users ?? [];
+  //$: safeRoles = $systemRoles ?? [];
+  $: safeRoles = $rolesPagination.items ?? [];
   $: isViewMode = mode === 'single' && selectedUsers.length === 1 && !onSave;
 
-  // Available roles from store
   $: availableRoles = safeRoles.map(role => ({
     id: role.role_key,
     name: role.display_name,
@@ -63,56 +61,60 @@
     type: role.power_level >= 60 ? 'core' : 'additional'
   }));
 
-  // Filter roles based on search
-  $: filteredRoles = availableRoles.filter(role => 
+  $: filteredRoles = availableRoles.filter(role =>
     role.name.toLowerCase().includes(roleSearchQuery.toLowerCase()) ||
     role.description.toLowerCase().includes(roleSearchQuery.toLowerCase())
   );
-
   $: coreRoles = filteredRoles.filter(role => role.type === 'core');
   $: additionalRoles = filteredRoles.filter(role => role.type === 'additional');
 
-  // Common roles across selected users
-  $: commonRoles = selectedUsers.length > 0 ? 
-    selectedUsers.reduce((common, user, index) => {
-      if (index === 0) return new Set(user.roles || []);
-      return new Set([...common].filter(role => 
-        (user.roles || []).includes(role)
-      ));
-    }, new Set()) : new Set();
+  $: commonRoles = selectedUsers.length > 0
+    ? selectedUsers.reduce((common, user, index) => {
+        if (index === 0) return new Set(user.roles || []);
+        return new Set([...common].filter(role => (user.roles || []).includes(role)));
+      }, new Set<string>())
+    : new Set<string>();
 
-  // Initialize selected users
+      /*
   $: {
     if (safeUsers.length > 0 && !initialized) {
       initializeSelectedUsers();
     }
   }
-
-  // Derived data
-  $: selectedRoleDetails = Array.from(selectedRoles).map(roleId => 
-    availableRoles.find(role => role.id === roleId)
-  ).filter(Boolean);
+*/
+  $: selectedRoleDetails = Array.from(selectedRoles)
+    .map(roleId => availableRoles.find(role => role.id === roleId))
+    .filter(Boolean);
 
   $: combinedPower = calculateCombinedPower();
   $: riskAssessment = getRiskAssessment();
 
-  onMount(() => {
-    loadUserRoles();
-    // Initialize additional fields with dummy data
-    initializeAdditionalFields();
+  onMount(async () => {
+    //loadUserRoles();
+    await rolesStore.setView(1, 50);
+    if (!initialized) {
+      initializeSelectedUsers();
+    }
   });
 
-  function initializeSelectedUsers() {
+  async function initializeSelectedUsers() {
+    
     if (mode === 'maintenance') {
-      // Start empty for maintenance mode
       selectedUsers = [];
       selectedRoles = new Set();
       initialized = true;
       return;
     }
-
     if (userIds.length > 0) {
-      const users = safeUsers.filter(u => userIds.includes(parseInt(u.id)));
+      console.log('initializeSelectedUsers()');
+      console.log(userIds);
+      //const users = safeUsers.filter(u => userIds.includes(u.user_id));
+      const users = await getUsers(userIds);
+      /*
+      const users = await getEntities([], {
+          queryFilter: { ids: userIds}
+      });*/
+      console.log(users);
       if (users.length > 0) {
         selectedUsers = users;
         loadUserRoles();
@@ -121,196 +123,102 @@
     }
   }
 
-  function initializeAdditionalFields() {
-    // For now, use dummy data. Later you can fetch from user data
-    additionalFields = {
-      department: dummyUserData.department,
-      location: dummyUserData.location,
-      status: dummyUserData.status,
-      statusEffectiveFrom: dummyUserData.statusEffectiveFrom
-    };
-  }
-
   function loadUserRoles() {
     if (selectedUsers.length === 1) {
-      // Single user mode - GET ROLES FROM STORE DATA
       const user = selectedUsers[0];
       if (user && user.roles) {
         selectedRoles = new Set(user.roles);
         originalUserRoles.set(user.id, new Set(user.roles));
       }
     } else if (selectedUsers.length > 1) {
-      // Bulk mode - start with common roles FROM STORE DATA
       selectedRoles = new Set(Array.from(commonRoles));
-      
-      // Store original roles for each user FROM STORE DATA
       selectedUsers.forEach(user => {
         originalUserRoles.set(user.id, new Set(user.roles || []));
       });
     }
   }
 
-  function searchUsers() {
-    if (!searchQuery.trim()) {
-      userSearchResults = [];
-      return;
-    }
-    
-    userSearchResults = safeUsers.filter(user => 
-      (user.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-    ).filter(user => !selectedUsers.find(su => su.id === user.id));
+  async function searchRoles() {
+  if (!roleSearchQuery.trim()) {
+    roleSearchResults = [];
+    return;
   }
+  roleSearchResults = await getRoles([], {
+    queryFilter: { q: roleSearchQuery, fields: ["role_key", "description"] }
+  });
+}
 
-  function addUser(user) {
-    if (!selectedUsers.find(su => su.id === user.id)) {
-      selectedUsers = [...selectedUsers, user];
-      searchQuery = '';
-      userSearchResults = [];
-      
-      // In view mode, if adding a user, switch to first user only
-      if (isViewMode && selectedUsers.length > 1) {
-        selectedUsers = [user];
-      }
-    }
-  }
 
-  function removeUser(userId) {
-    selectedUsers = selectedUsers.filter(user => user.id !== userId);
-    originalUserRoles.delete(userId);
-    
-    if (selectedUsers.length === 0) {
-      selectedRoles = new Set();
-    }
-  }
-
-  function toggleRole(roleId) {
-    if (isViewMode) return; // Disabled in view mode
-    
-    if (selectedRoles.has(roleId)) {
-      selectedRoles.delete(roleId);
-    } else {
-      selectedRoles.add(roleId);
-    }
+  function toggleRole(roleId: string) {
+    if (isViewMode) return;
+    selectedRoles.has(roleId) ? selectedRoles.delete(roleId) : selectedRoles.add(roleId);
   }
 
   function calculateCombinedPower() {
     let maxPower = 0;
     selectedRoles.forEach(roleId => {
       const role = availableRoles.find(r => r.id === roleId);
-      if (role && role.power > maxPower) {
-        maxPower = role.power;
-      }
+      if (role && role.power > maxPower) maxPower = role.power;
     });
     return maxPower;
   }
 
   function getRiskAssessment() {
     const power = calculateCombinedPower();
-    const roleCount = selectedRoles.size;
-    
-    if (power >= 100) {
-      return {
-        level: 'critical',
-        message: 'User has administrative access',
-        recommendation: 'Monitor all administrative activities',
-        color: 'red'
-      };
-    } else if (power >= 80) {
-      return {
-        level: 'high', 
-        message: 'User can manage other users',
-        recommendation: 'Regular audit of user management activities',
-        color: 'orange'
-      };
-    } else if (power >= 60) {
-      return {
-        level: 'medium',
-        message: 'User has content modification capabilities',
-        recommendation: 'Standard monitoring recommended',
-        color: 'yellow'
-      };
-    } else {
-      return {
-        level: 'low',
-        message: 'User has basic viewing access',
-        recommendation: 'Low risk - normal operations',
-        color: 'green'
-      };
-    }
+    if (power >= 100) return { level: 'critical', message: 'User has administrative access', recommendation: 'Monitor all administrative activities', color: 'red' };
+    if (power >= 80) return { level: 'high', message: 'User can manage other users', recommendation: 'Regular audit of user management activities', color: 'orange' };
+    if (power >= 60) return { level: 'medium', message: 'User has content modification capabilities', recommendation: 'Standard monitoring recommended', color: 'yellow' };
+    return { level: 'low', message: 'User has basic viewing access', recommendation: 'Low risk - normal operations', color: 'green' };
   }
 
-  async function saveRoles() {
+  async function saveUserRoles() {
     if (selectedUsers.length === 0 || isViewMode) return;
-    
-    // Show warning for multi-user role replacement
-    if (selectedUsers.length > 1) {
-      const confirmed = confirm(
-        `⚠️ This will REPLACE all existing roles for ${selectedUsers.length} users with the selected roles. This action cannot be undone. Continue?`
-      );
+    if (selectedUsers.length > 0) {
+      const confirmed = confirm(`⚠️ This will REPLACE all existing roles for ${selectedUsers.length} users with the selected roles. Continue?`);
       if (!confirmed) return;
     }
-
     saveLoading = true;
     saveMessage = '';
-    
     try {
       const roleArray = Array.from(selectedRoles);
+
+      // Build parallel arrays
+      const ids: (string | number)[] = selectedUsers.map(u => u.id);
+
+      const payloads: UserUpdatePayload[] = selectedUsers.map(u => ({
+        user_id: u.id,
+        email: u.email,
+        role: roleArray
+      }));
       
-      // Update roles for all selected users - STORE WILL BE UPDATED AUTOMATICALLY
-      const promises = selectedUsers.map(user => 
-        permissionActions.updateUserRole(parseInt(user.id), roleArray)
-      );
-      
-      const results = await Promise.all(promises);
-      const allSuccess = results.every(result => result.success);
-      
-      if (allSuccess) {
-        saveMessage = `✅ Roles updated successfully for ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}!`;
-        
-        // Update original roles
-        selectedUsers.forEach(user => {
-          originalUserRoles.set(user.id, new Set(selectedRoles));
-        });
-        
-        // Call onSave callback if provided
-        if (onSave) {
-          onSave(roleArray);
-        }
-      } else {
-        saveMessage = `❌ Failed to update roles for some users`;
-      }
-      
+      await updateItem<UserUpdatePayload>(ids, payloads);
+  
+      saveMessage = `✅ Roles updated successfully for ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}!`;
+      selectedUsers.forEach(user => originalUserRoles.set(user.id, new Set(selectedRoles)));
+      onSave?.(roleArray);
     } catch (error) {
+      console.error(error);
       saveMessage = '❌ Failed to update user roles';
-      console.error('Error updating user roles:', error);
     } finally {
       saveLoading = false;
     }
   }
 
   function cancelEdit() {
-    // Restore original roles for each user FROM STORE DATA
     if (selectedUsers.length === 1) {
       const originalRoles = originalUserRoles.get(selectedUsers[0].id);
-      if (originalRoles) {
-        selectedRoles = new Set(originalRoles);
-      }
+      if (originalRoles) selectedRoles = new Set(originalRoles);
     } else {
       selectedRoles = new Set();
     }
-    
-    // Call onCancel callback if provided
-    if (onCancel) {
-      onCancel();
-    }
+    onCancel?.();
   }
 
-  function getPowerLevelIcon(power) {
+  function getPowerLevelIcon(power: number) {
     return PermissionUtils.getPowerLevelIcon(power);
   }
 
-  function getRiskColorClass(level) {
+  function getRiskColorClass(level: string) {
     const colors = {
       critical: 'bg-red-50 border-red-200 text-red-700',
       high: 'bg-orange-50 border-orange-200 text-orange-700',
@@ -321,19 +229,12 @@
   }
 
   function getHeaderTitle() {
-    if (isViewMode) {
-      return 'User Role Assignment';
-    }
-    
+    if (isViewMode) return 'User Role Assignment';
     switch (mode) {
-      case 'single':
-        return 'Edit User Roles';
-      case 'bulk':
-        return `Bulk Edit Roles (${selectedUsers.length} users)`;
-      case 'maintenance':
-        return 'User Role Maintenance';
-      default:
-        return 'User Role Assignment';
+      case 'single': return 'Edit User Roles';
+      case 'bulk': return `Bulk Edit Roles (${selectedUsers.length} users)`;
+      case 'maintenance': return 'User Role Maintenance';
+      default: return 'User Role Assignment';
     }
   }
 
@@ -343,20 +244,61 @@
     return `Apply to ${selectedUsers.length} User${selectedUsers.length > 1 ? 's' : ''}`;
   }
 
-  function handleEditClick() {
+  function toggleAdditionalFields() {
+    expandedAdditionalFields = !expandedAdditionalFields;
+  }
+
+  async function searchUsers() {
+    if (!userSearchQuery.trim()) {
+      userSearchResults = [];
+      return;
+    }
+
+    // Instead of filtering safeUsers locally:
+    // userSearchResults = safeUsers.filter(...)
+
+    // Use store lookup with filter
+    userSearchResults = await getUsers([], {
+      queryFilter: { q: userSearchQuery, fields: ["display_name", "email","user_id"] }
+    });
+
+    // Optionally exclude already selected
+    userSearchResults = userSearchResults.filter(
+      user => !selectedUsers.find(su => su.user_id === user.user_id)
+    );
+  }
+
+
+ function addUser(user) {
+    if (!selectedUsers.find(su => su.user_id === user.user_id)) {
+      selectedUsers = [...selectedUsers, user];
+      userSearchQuery = '';
+      userSearchResults = [];
+      
+      // In view mode, if adding a user, switch to first user only
+      if (isViewMode && selectedUsers.length > 1) {
+        selectedUsers = [user];
+      }
+    }
+  }
+
+    function removeUser(userId) {
+    selectedUsers = selectedUsers.filter(user => user.user_id !== userId);
+    originalUserRoles.delete(userId);
+    
+    if (selectedUsers.length === 0) {
+      selectedRoles = new Set();
+    }
+  }
+
+    function handleEditClick() {
     // Navigate to edit mode - this would typically change the route
     if (selectedUsers.length === 1) {
       goto(`/permission/users/${selectedUsers[0].id}/edit`);
     }
   }
 
-  function toggleAdditionalFields() {
-    expandedAdditionalFields = !expandedAdditionalFields;
-  }
 </script>
-
-<!-- REST OF THE COMPONENT REMAINS THE SAME -->
-<!-- Only the data loading logic is changed to use store data -->
 
 <div class="min-h-screen bg-gray-50 py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -393,7 +335,7 @@
     {/if}
 
     <!-- Loading State -->
-    {#if $loading.users || $loading.roles}
+    {#if $usersLoading}
       <div class="flex justify-center items-center py-12">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         <span class="ml-4 text-gray-600">Loading data...</span>
@@ -422,9 +364,9 @@
                 </div>
                 <input
                   type="text"
-                  bind:value={searchQuery}
+                  bind:value={userSearchQuery}
                   on:input={searchUsers}
-                  placeholder="Search users to add..."
+                  placeholder="Search users to add by name/email/id..."
                   class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
                 />
               </div>
@@ -487,7 +429,7 @@
                     <!-- Remove button (disabled in single mode and view mode) -->
                     {#if mode !== 'single' && !isViewMode}
                       <button
-                        on:click={() => removeUser(user.id)}
+                        on:click={() => removeUser(user.user_id)}
                         class="text-gray-400 hover:text-red-500 transition-colors duration-200 p-1"
                         title="Remove user"
                       >
@@ -513,14 +455,13 @@
             {/if}
           </div>
         </div>
-
         <!-- Available Roles Panel -->
+          
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {#if !isViewMode}
           <h2 class="text-xl font-semibold text-gray-900 mb-4">
-            Available Roles
-            {#if isViewMode}
-              <span class="ml-2 text-sm font-normal text-gray-500">(View Only)</span>
-            {/if}
+            Available Roles           
+              <span class="ml-2 text-sm font-normal text-gray-500">(View Only)</span>            
           </h2>
 
           <!-- Role Search (disabled in view mode) -->
@@ -538,13 +479,61 @@
               />
             </div>
           </div>
+          {/if}
 
           <!-- Core Roles Section -->
           {#if coreRoles.length > 0}
             <div class="mb-6">
-              <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Core Roles</h3>
+              {#if isViewMode}
+                <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Assigned Roles</h3>
+              {:else}
+                <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Core Roles</h3>
+              {/if}
               <div class="space-y-2">
                 {#each coreRoles as role}
+                  {#if isViewMode}
+                    {#if selectedRoles.has(role.id)}
+                    <div class="border border-gray-200 rounded-lg p-3 transition-colors duration-200 {selectedRoles.has(role.id) ? 'border-indigo-500 bg-indigo-50' : ''} {isViewMode ? 'bg-gray-50' : 'hover:border-gray-300'}">
+                      <div class="flex items-start space-x-3">
+                        {#if isViewMode}
+                          <!-- View mode: show indicator instead of checkbox -->
+                          <div class="mt-1 h-4 w-4 flex items-center justify-center">
+                            {#if selectedRoles.has(role.id)}
+                              <div class="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                            {/if}
+                          </div>
+                        {:else}
+                          <!-- Edit mode: show checkbox -->
+                          <input
+                            type="checkbox"
+                            checked={selectedRoles.has(role.id)}
+                            on:change={() => toggleRole(role.id)}
+                            class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                          />
+                        {/if}
+                        <div class="flex-1">
+                          <div class="flex items-center justify-between">
+                            <span class="font-semibold text-gray-900">{role.name}</span>
+                            <div class="flex items-center space-x-2">
+                              <span class="text-lg">{getPowerLevelIcon(role.power)}</span>
+                              <span class="text-sm text-gray-500">Power {role.power}</span>
+                            </div>
+                          </div>
+                          <p class="text-sm text-gray-600 mt-1">{role.description}</p>
+                          <div class="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                            <span>🔐 {role.permissions} permissions</span>
+                            {#if role.is_system_role}
+                              <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">System</span>
+                            {/if}
+                            {#if isViewMode && selectedRoles.has(role.id)}
+                              <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full">Assigned</span>
+                            {/if}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/if}
+                  {:else}
                   <div class="border border-gray-200 rounded-lg p-3 transition-colors duration-200 {selectedRoles.has(role.id) ? 'border-indigo-500 bg-indigo-50' : ''} {isViewMode ? 'bg-gray-50' : 'hover:border-gray-300'}">
                     <div class="flex items-start space-x-3">
                       {#if isViewMode}
@@ -584,58 +573,13 @@
                       </div>
                     </div>
                   </div>
+
+                  {/if}
                 {/each}
+                
               </div>
             </div>
           {/if}
-
-          <!-- Additional Roles Section -->
-          {#if additionalRoles.length > 0}
-            <div class="mb-6">
-              <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Additional Roles</h3>
-              <div class="space-y-2">
-                {#each additionalRoles as role}
-                  <div class="border border-gray-200 rounded-lg p-3 transition-colors duration-200 {selectedRoles.has(role.id) ? 'border-indigo-500 bg-indigo-50' : ''} {isViewMode ? 'bg-gray-50' : 'hover:border-gray-300'}">
-                    <div class="flex items-start space-x-3">
-                      {#if isViewMode}
-                        <!-- View mode: show indicator instead of checkbox -->
-                        <div class="mt-1 h-4 w-4 flex items-center justify-center">
-                          {#if selectedRoles.has(role.id)}
-                            <div class="w-2 h-2 bg-indigo-600 rounded-full"></div>
-                          {/if}
-                        </div>
-                      {:else}
-                        <!-- Edit mode: show checkbox -->
-                        <input
-                          type="checkbox"
-                          checked={selectedRoles.has(role.id)}
-                          on:change={() => toggleRole(role.id)}
-                          class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        />
-                      {/if}
-                      <div class="flex-1">
-                        <div class="flex items-center justify-between">
-                          <span class="font-semibold text-gray-900">{role.name}</span>
-                          <div class="flex items-center space-x-2">
-                            <span class="text-lg">{getPowerLevelIcon(role.power)}</span>
-                            <span class="text-sm text-gray-500">Power {role.power}</span>
-                          </div>
-                        </div>
-                        <p class="text-sm text-gray-600 mt-1">{role.description}</p>
-                        <div class="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                          <span>🔐 {role.permissions} permissions</span>
-                          {#if isViewMode && selectedRoles.has(role.id)}
-                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full">Assigned</span>
-                          {/if}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
           <!-- No Roles Found -->
           {#if filteredRoles.length === 0}
             <div class="text-center py-8 text-gray-500">
@@ -692,7 +636,7 @@
               
               <!-- Status Field -->
               <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <div class="text-sm font-medium text-gray-700 mb-2">Status</div>
                 <div class="flex space-x-6">
                   <label class="flex items-center {isViewMode ? 'cursor-not-allowed' : ''}">
                     <input 
@@ -741,7 +685,6 @@
           </div>
         {/if}
       </div>
-
       <!-- Warning Message for Multi-User -->
       {#if selectedUsers.length > 1 && !isViewMode}
         <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -762,7 +705,7 @@
       <div class="mt-8 flex space-x-4 justify-end">
         {#if isViewMode}
           <!-- View Mode Actions -->
-          <button
+          <!--button
             on:click={handleEditClick}
             class="px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
           >
@@ -774,7 +717,7 @@
             class="px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200 text-center"
           >
             ← Back to Users
-          </a>
+          </a-->
         {:else}
           <!-- Edit Mode Actions -->
           <button
@@ -785,7 +728,7 @@
           </button>
           
           <button
-            on:click={saveRoles}
+            on:click={saveUserRoles}
             disabled={saveLoading || selectedUsers.length === 0}
             class="px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
           >
@@ -809,12 +752,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  /* Responsive design */
-  @media (max-width: 1280px) {
-    .grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

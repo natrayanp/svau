@@ -8,15 +8,19 @@
     //systemStatsStore,
     permissionStructureStore
   } from '$lib/permission/stores/permission_readonly_stores';
+  
 
   import { userPowerLevel, userMaxPower } from '$lib/permission/stores_permission';
   import { PermissionUtils } from '$lib/permission/utils_permission';
 
   // Child components
   import UserDirectory from '$lib/permission/components/UserDirectory.svelte';
-  import RroleDirecotry from '$lib/permission/components/RroleDirecotry.svelte';
   import UserRoleAssignment from '$lib/permission/components/UserRoleAssignment.svelte';
-  import RoleEditPage from '$lib/permission/components/RoleEditPage.svelte';
+  import RoleDirecotry from '$lib/permission/components/RoleDirecotry.svelte';
+  import RoleEditPage from '$lib/permission/components/RoleEditPage.svelte'; 
+
+  // Destructure to get the actual stores
+  const { data: permissionStructureData, loading: permissionStructureLoading } = permissionStructureStore;
 
   /* ----------------------------------------------------------
      Local UI State
@@ -40,12 +44,17 @@
      Safe derived data
   ----------------------------------------------------------- */
 
-  const { data: permissionStruct, loading: permissionload } = permissionStructureStore;
+  //const { data: permissionStruct, loading: permissionload } = permissionStructureStore;
   
 
-  $: safeStructure = $permissionStruct ?? { modules: [] };
+  $: safeStructure = $permissionStructureData ?? { modules: [] };
   $: modules = safeStructure.modules ?? [];
-  //$: stats = $systemStatsStore.data ?? { total_users: 0, total_roles: 0 };
+  //$: permissionLoading = $permissionStructureStore.loading;
+  $: totalPermissions = Object.keys(safeStructure.permissions_list || {}).length;
+
+
+   // Add if you have systemStatsStore
+  // $: stats = $systemStatsStore.data ?? { total_users: 0, total_roles: 0 };
 
   /* ----------------------------------------------------------
      Data loading
@@ -177,6 +186,7 @@
   /*const toggleExpand = (roleKey) => {
     expandedRole = expandedRole === roleKey ? null : roleKey;
   };*/
+  
 
 </script>
 
@@ -207,7 +217,7 @@
     </div>
 
     <!-- Loading -->
-    {#if $permissionload}
+    {#if $permissionStructureLoading}
       <div class="flex justify-center items-center py-12">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         <span class="ml-4 text-gray-600">Loading dashboard data...</span>
@@ -270,7 +280,7 @@
                 <div class="text-xs lg:text-sm font-medium text-gray-500">Permissions</div>
                 <div class="text-xl lg:text-2xl font-bold text-gray-900">
                 <!--{safeStructure.metadata?.total_permissions || 0}-->
-                test safeStructure
+                  {totalPermissions}
                 </div>
               </div>
             </div>
@@ -322,17 +332,17 @@
                       <span>←</span><span>Back to Role List</span>
                     </button>
                   </div>
-                  <h>RoleEditPage Coming</h>
-                  <!--RoleEditPage
+                  <!--h>RoleEditPage Coming</h-->
+                  <RoleEditPage
                     mode={roleEditMode}
                     roleId={selectedRoleId}
                     onSave={handleRoleSave}
-                    onCancel={handleRoleCancel} /-->
+                    onCancel={handleRoleCancel} />
                 </div>
 
               {:else}
                 <div class="w-full p-4 lg:p-6">
-                  <RroleDirecotry 
+                  <RoleDirecotry 
                     showHeader={false}
                     enableExport={true}
                     fullWidth={true}
@@ -351,7 +361,16 @@
                       <span>←</span><span>Back to User List</span>
                     </button>
                   </div>
-                  <h>UserRoleAssignment Coming</h>
+                  <!--h>UserRoleAssignment Coming</h-->
+
+                  <UserRoleAssignment
+                    userIds={selectedUserIds}
+                    mode={userManagementMode}
+                    showHeader={false}
+                    onSave={isEditing ? handleUserSave : null}
+                    onCancel={isEditing ? handleUserCancel : null}
+                  />
+
                   <!--UserRoleAssignment
                     userIds={selectedUserIds}
                     mode={userManagementMode}
@@ -363,8 +382,7 @@
               {:else}
                 <div class="w-full p-4 lg:p-6">
                   <UserDirectory 
-                    showHeader={false}
- 
+                    showHeader={false} 
                     enableExport={true}
                     fullWidth={true}
                     onViewUser={viewUser}

@@ -1,84 +1,9 @@
 import type { ApiUser } from '$lib/types';
 
-// ==================== CORE DATABASE TYPES ====================
-
-// Add ActionDetail interface
-export interface ActionDetail {
-  action_key: string;
-  display_name: string;
-  power_level: number;
-  category?: string;
-}
-
-// Update existing interfaces to include allowed_actions
-export interface PermissionDetail {
-  id: string;
-  permission_action: string;
-  display_name: string;
-  description: string;
-  power_level: number;
-  default_roles?: string[]; // Fixed in next step
-  icon?: string;
-  card_id?: string;
-  card_name?: string;
-  menu_name?: string;
-  module_name?: string;
-}
-
-export interface CardDetail {
-  id: string;
-  key: string;
-  name: string;
-  description: string;
-  display_order: number;
-  menu_id: string;
-  permissions: PermissionDetail[];
-  allowed_actions?: ActionDetail[]; // ← ADD THIS
-}
-
-export interface MenuDetail {
-  id: string;
-  key: string;
-  name: string;
-  description: string;
-  display_order: number;
-  module_id: string;
-  permissions: PermissionDetail[];
-  cards: CardDetail[];
-  allowed_actions?: ActionDetail[]; // ← ADD THIS
-}
-
-export interface ModuleDetail {
-  id: string;
-  key: string;
-  name: string;
-  icon: string;
-  color: string;
-  description: string;
-  display_order: number;
-  menus: MenuDetail[];
-  allowed_actions?: ActionDetail[]; // ← ADD THIS
-}
-
-export interface PermissionStructure {
-  modules: ModuleDetail[];
-  metadata: {
-    total_modules: number;
-    total_menus: number;
-    total_cards: number;
-    total_permissions: number;
-    last_updated: string;
-  };
-}
-
+/
 // ==================== ERROR TYPES ====================
 
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: any;
-  timestamp: string;
-}
+
 
 export interface PermissionConflict {
   permission_id: string;  // ← CHANGED TO STRING
@@ -89,18 +14,8 @@ export interface PermissionConflict {
 
 // ==================== API RESPONSE WRAPPERS ====================
 
-export interface ApiResponse<T = any> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: ApiError;
-}
 
-export interface SuccessResponse {
-  success: boolean;
-  message: string;
-  data?: any;
-}
+
 
 export interface BulkOperationResponse {
   success: boolean;
@@ -179,10 +94,7 @@ export interface PermissionValidationResponse {
   all_allowed: boolean;
 }
 
-export interface AllowedPermissionsResponse {
-  allowed_permissions: PermissionDetail[];
-  max_parent_power: number;
-}
+
 
 export interface RoleTemplate {
   template_key: string;
@@ -204,42 +116,19 @@ export interface RolePermissionsResponse {
   permission_count: number;
 }
 
-
-
-export interface Role {
-  role_key: string;
-  display_name: string;
-  description: string;
-  is_system_role: boolean;
-  is_template: boolean;
-  template_id: string[];
-  template_name: string[];
-  permission_count: number;
-  user_count: number;
-
-  // ADD THESE FOR LOCAL OPERATIONS:
-  permissions?: string[]; // permission IDs for this role
-  power_level?: number;   // calculated power level
-  created_at?: string;    // ISO timestamp
-  updated_at?: string;    // ISO timestamp
+export interface AllowedPermissionsResponse {
+  allowed_permissions: PermissionDetail[];
+  max_parent_power: number;
 }
+
+
 
 export interface RoleResponse {
   roles: Role[];
   summary: Record<string, any>;
 }
 
-export interface User {
-  user_id: string;                // Primary key
-  uid: string;               // Unique external identifier
-  email: string;             // User email
-  display_name?: string;     // Optional display name
-  org_id: string;   // Organization foreign key
-  email_verified: boolean;   // Whether email is verified
-  created_at: string;        // ISO timestamp
-  updated_at: string;        // ISO timestamp
-  roles: string[];           // List of role keys assigned to the user
-}
+
 
 export interface QuickAction {
   icon: string;
@@ -475,18 +364,7 @@ export interface PermissionCache {
   ttl: number;
 }
 
-// ==================== Paginated response ====================
 
-// paginationTypes.ts
-export interface PaginatedData<T>  {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
-};
 
 export type GenericCache<T> = Record<number, T[]>;
 
@@ -494,10 +372,9 @@ export type GenericCache<T> = Record<number, T[]>;
 
 // ==================== SPECIFIC API RESPONSE TYPES ====================
 
-export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> {}
 
-export interface RoleApiResponse extends ApiResponse<PaginatedData<Role>> {}
-export interface UsersApiResponse extends ApiResponse<PaginatedData<User>> {}
+
+
 
 export interface RoleTemplatesResponse extends ApiResponse<{ [key: string]: RoleTemplate }> {}
 export interface RolePermissionsApiResponse extends ApiResponse<RolePermissionsResponse> {}
@@ -515,7 +392,7 @@ export interface RevokePermissionsResponse extends ApiResponse<BulkPermissionsRe
 export interface BulkRolePermissionsApiResponse extends ApiResponse<BulkRolePermissionsResponse> {}
 export interface BulkUserRolesApiResponse extends ApiResponse<BulkUserRolesResponse> {}
 export interface PermissionConflictApiResponse extends ApiResponse<PermissionConflictResponse> {}
-export type UserPaginationData = PaginatedData<User>;
+
 
 // ==================== CONSTANTS ====================
 

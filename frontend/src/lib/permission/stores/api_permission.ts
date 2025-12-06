@@ -3,17 +3,22 @@ import type {
   PermissionStructure,
   Role,
   PermissionStructureResponse,
-  AllowedPermissionsResponse as AllowedPermissionsResponseType,
+  //AllowedPermissionsResponse as AllowedPermissionsResponseType,
+  ApiResponse,
   RoleApiResponse,
   ApiError,
+  ApiFetch,
   User,
-  UserPaginationData,
-  UsersApiResponse
-} from '../types_permission';
+  UsersGetApiResponse,
+  PaginatedData,
+  UserUpdatePayload,
+  UsersDelApiResponse
+} from './types_permission';
 
 import MOCK_DATA from '../Mockdata/permissions_mockdata.json';
 
-import type { PaginatedData } from '../types_permission';
+import type {  } from './types_permission';
+import type { ApiUser } from '$lib/auth/types';
 
 
 const PERMISSION_PREFIX_URL = '/auth-api/permissions';
@@ -132,7 +137,7 @@ class PermissionApi extends BaseApi {
 }
 
 
-  private handleResponse<T>(response: { success: boolean; message: string; data?: T | PaginatedData<T> | T[] ; error?: ApiError }): T | PaginatedData<T> | T[]  {
+  private handleResponse<T>(response: ApiResponse<T | PaginatedData<T> | T[]>): T | PaginatedData<T> | T[]  {
 
     console.log('handleresponse');
     console.log(response);
@@ -161,22 +166,45 @@ async getPermissionStructure(): Promise<PermissionStructure> {
 }
 
 
-  async getUsers(offset = 1, limit = 20): Promise<PaginatedData<User>> {
+  async getUsers({offset = 1, limit = 20}:ApiFetch): Promise<PaginatedData<User>> {
     console.log('getUsers1');
     console.log(`/users?offset=${offset}&limit=${limit}`);
     //const response = await this.request<UsersApiResponse>(`/users`);  
-    const response = await this.request<UsersApiResponse>(
+    const response = await this.request<ApiResponse<PaginatedData<User>>>(
     `/users?offset=${offset}&limit=${limit}`
   );
       console.log('getUsers2');  
-    const data = this.handleResponse<User>(response);
+    const data = this.handleResponse<PaginatedData<User>>(response);
       console.log('getUsers3');
       return data as PaginatedData<User>; // data is { items: User[], total, page, ... }
   }
 
+  async updateUsersRole(updates: UserUpdatePayload[]): Promise<User[]> {
+    // Call backend endpoint
+    console.log(updates);
+    const response = await this.request<ApiResponse<User[]>>(
+      '/users/update',
+      {
+        method: 'POST',   // or POST depending on backend
+        body: JSON.stringify({action:'update',data:updates})  // send array of payloads
+      }
+    );
+
+    const data = this.handleResponse<User[]>(response);
+    return data as User[];
+  }
+
+  async deleteUserRole(deletes: (string | number)[]): Promise<void> {
+    const response = await this.request<ApiResponse<void>>(`/users/delete`, {
+      method: 'POST',
+      body: JSON.stringify({action:'delete',data:deletes})
+    });
+    return this.handleResponse(response) as void;
+  }
+
     // System Roles - Returns string IDs in permissions
 // In api_permission.ts
-  async getSystemRoles(offset = 1, limit = 20): Promise<PaginatedData<Role>> {
+  async getRoles({offset = 1, limit = 20}:ApiFetch): Promise<PaginatedData<Role>> {
     console.log('getSystemRoles1');
     //const response = await this.request<SystemRolesApiResponse>(`/roles?page=${page}&page_size=${page_size}`);
       console.log('getSystemRoles2');
