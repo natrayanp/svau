@@ -204,6 +204,10 @@
     }
   }
 
+  function cancelView() {
+    onCancel?.();
+  }
+
   function cancelEdit() {
     if (selectedUsers.length === 1) {
       const originalRoles = originalUserRoles.get(selectedUsers[0].id);
@@ -705,14 +709,14 @@
       <div class="mt-8 flex space-x-4 justify-end">
         {#if isViewMode}
           <!-- View Mode Actions -->
-          <!--button
-            on:click={handleEditClick}
+          <button
+            on:click={cancelView}
             class="px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
           >
-            <span>✏️</span>
-            <span>Edit Roles</span>
+            <!--span>✏️</span-->
+            <span>Cancel</span>
           </button>
-          <a
+          <!--a
             href="/permission/users"
             class="px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200 text-center"
           >

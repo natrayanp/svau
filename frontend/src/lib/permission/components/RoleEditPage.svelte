@@ -14,6 +14,8 @@
   // Props for different modes
   export let mode = 'view'; // 'new' | 'view' | 'edit'
   export let roleId ;
+  export let onSave: (() => void) | null = null;
+  export let onCancel: (() => void) | null = null;
 
   // Local state
   let roleData = {
@@ -165,9 +167,15 @@
       }
       
       // Navigate back after successful save
-      setTimeout(() => {
-        goto('/permission/roles');
-      }, 1500);
+      // Call parent callback or navigate back
+      if (onSave) {
+        setTimeout(() => onSave(), 500); // Call parent callback
+      } else {
+        // Fallback navigation if no callback
+        setTimeout(() => {
+          goto('/permission/roles');
+        }, 1500);
+      }
     } catch (error) {
       console.error('Error saving role:', error);
       saveMessage = '❌ Failed to save role';
@@ -176,20 +184,23 @@
     }
   }
 
+
   function cancelEdit() {
-    if (mode === 'new') {
-      // For new mode, just go back
+    if (onCancel) {
+      // Use parent callback if provided
+      onCancel();
+    } else if (mode === 'new') {
+      // Fallback to navigation only if no callback
       goto('/permission/roles');
     } else if (originalRoleData) {
-      // For edit mode, restore original data
+      // For edit mode without callback, restore data
       roleData = { ...originalRoleData };
-      
-      // Go back to view mode or navigate away
       if (mode === 'edit') {
         mode = 'view';
       }
     }
   }
+
 
   function editRole() {
     mode = 'edit';
@@ -444,10 +455,21 @@ $: if ($permissionStructureData && roleData.permissions.length > 0) {
           </h2>
         </div>
         <div class="p-6">
-          <PermissionTree 
+          <!--PermissionTree 
             isViewMode={mode === 'view'}
             selectedPermissions={roleData.permissions}
             onPermissionsChange={(permissions) => { console.log("dummy");console.log(permissions);roleData.permissions = permissions; }}
+          /-->
+          <PermissionTree 
+            isViewMode={mode === 'view'}
+            selectedPermissions={roleData.permissions}
+            onPermissionsChange={(permissions) => {
+              roleData.permissions = permissions;
+              // Recalculate power level when permissions change
+              if ($permissionStructureData) {
+                roleData.power_level = PermissionUtils.getMaxPower(permissions, $permissionStructureData);
+              }
+            }}
           />
           
           <!--
@@ -461,63 +483,57 @@ $: if ($permissionStructureData && roleData.permissions.length > 0) {
       </div>
 
       <!-- Actions Card -->
-      <div class="premium-card">
-        <div class="premium-card-header">
-          <h2 class="text-xl font-semibold text-gray-900">Actions</h2>
-        </div>
-        <div class="p-6 space-y-4">
-          {#if saveMessage}
-            <div class="premium-message {saveMessage.includes('✅') ? 'success' : 'error'}">
-              <span class="text-lg">{saveMessage.includes('✅') ? '✅' : '❌'}</span>
-              <span class="font-medium">{saveMessage}</span>
-            </div>
-          {/if}
-
-          <div class="flex flex-col sm:flex-row gap-4">
-            {#if mode === 'view'}
-              <button
-                on:click={editRole}
-                class="premium-primary-btn flex-1"
-              >
-                <span class="text-lg">✏️</span>
-                <span>Edit Role</span>
-              </button>
-              <a
-                href="/permission/roles"
-                class="premium-secondary-btn flex-1 text-center"
-              >
-                ← Back to Roles
-              </a>
-            {:else}
-              <button
-                on:click={saveRole}
-                disabled={saveLoading || (mode === 'new' && !roleData.name.trim())}
-                class="premium-primary-btn flex-1 {saveLoading || (mode === 'new' && !roleData.name.trim()) ? 'opacity-50 cursor-not-allowed' : ''}"
-              >
-                {#if saveLoading}
-                  <div class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                  <span>Saving...</span>
-                {:else}
-                  <span class="text-lg">💾</span>
-                  <span>{getActionButtonText()}</span>
-                {/if}
-              </button>
-              
-              <button
-                on:click={cancelEdit}
-                class="premium-secondary-btn flex-1 text-center"
-              >
-                {#if mode === 'new'}
-                  Cancel
-                {:else}
-                  Discard Changes
-                {/if}
-              </button>
-            {/if}
-          </div>
-        </div>
-      </div>
+  
+<div class="premium-card">
+  <div class="p-6 space-y-4">
+    {#if saveMessage}
+    <div class="premium-message {saveMessage.includes('✅') ? 'success' : 'error'}">
+      <span class="text-lg">{saveMessage.includes('✅') ? '✅' : '❌'}</span>
+      <span class="font-medium">{saveMessage}</span>
+    </div>
     {/if}
+
+    <!-- Right-aligned button container -->
+    <div class="flex justify-end gap-3">
+      {#if mode === 'view'}
+      <button on:click={editRole} class="premium-primary-btn text-sm px-4 py-2">
+        <span class="text-lg">✏️</span>
+        <span>Edit Role</span>
+      </button>
+      <!-- Use onCancel callback for back button -->
+      <button on:click={onCancel ? onCancel : () => goto('/permission/roles')} 
+              class="premium-secondary-btn text-sm px-4 py-2">
+        ← Back
+      </button>
+      {:else}
+      <button
+        on:click={saveRole}
+        disabled={saveLoading || (mode === 'new' && !roleData.name.trim())}
+        class="premium-primary-btn text-sm px-4 py-2 {saveLoading || (mode === 'new' && !roleData.name.trim()) ? 'opacity-50 cursor-not-allowed' : ''}"
+      >
+        {#if saveLoading}
+        <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+        <span>Saving...</span>
+        {:else}
+        <span class="text-lg">💾</span>
+        <span>{getActionButtonText()}</span>
+        {/if}
+      </button>
+
+      <button on:click={cancelEdit} class="premium-secondary-btn text-sm px-4 py-2">
+        {#if mode === 'new'}
+        Cancel
+        {:else}
+        Discard
+        {/if}
+      </button>
+      {/if}
+    </div>
+  </div>
+</div>
+{/if}
+    
+   
   </div>
 </div>
 

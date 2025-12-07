@@ -327,12 +327,46 @@
             {#if activeTab === 'roles'}
               {#if roleManagementView === 'edit'}
                 <div class="w-full p-4 lg:p-6">
-                  <div class="mb-4">
-                    <button on:click={backToRoleList} class="text-indigo-600 hover:text-indigo-700 flex items-center space-x-2">
-                      <span>←</span><span>Back to Role List</span>
+
+                  <!-- Navigation Button -->
+                  
+                  <!--div class="mb-8">
+                    <button on:click={backToRoleList} 
+                            class="group flex items-center space-x-3 p-3 rounded-xl border-2 border-dashed border-gray-200 hover:border-solid hover:border-indigo-300 hover:bg-gradient-to-br hover:from-white hover:to-indigo-50/30 transition-all duration-300"-->
+                      
+                      <!-- Icon in circle outline -->
+                      <!--div class="relative">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-full border-2 border-gray-200 group-hover:border-indigo-300 bg-white group-hover:bg-indigo-50 transition-all duration-300">
+                          <svg class="w-4 h-4 text-gray-500 group-hover:text-indigo-600 transform group-hover:-translate-x-0.5 transition-all duration-300" 
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div class="relative">
+                        <span class="text-lg font-semibold text-gray-800 group-hover:text-indigo-700 transition-colors duration-300">
+                          Return to Role List
+                        </span>
+                        <div class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-400 group-hover:w-full transition-all duration-500 rounded-full"></div>
+                      </div>
                     </button>
-                  </div>
-                  <!--h>RoleEditPage Coming</h-->
+                  </div-->
+                  <!--div class="mb-6">
+                    <button on:click={backToRoleList} 
+                            class="group flex items-center space-x-2 text-gray-600 hover:text-indigo-700 transition-colors duration-200">
+                      <div class="relative">
+                        <div class="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 group-hover:bg-indigo-200 transition-colors">
+                          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                        </div>    
+                      </div>
+                      <span class="font-large border-b border-transparent group-hover:border-indigo-400 group-hover:border-dashed pb-0.5 transition-all duration-200">
+                        Return to Role List
+                      </span>
+                    </button>
+                  </div-->
+
                   <RoleEditPage
                     mode={roleEditMode}
                     roleId={selectedRoleId}
@@ -356,19 +390,45 @@
             {:else if activeTab === 'users'}
               {#if userManagementView === 'user'}
                 <div class="w-full p-4 lg:p-6">
-                  <div class="mb-4">
+
+                  <!-- 3 -->
+
+                  <!--div class="mb-8">
+                    <button on:click={backToUserList} 
+                            class="group flex items-center space-x-3 p-3 rounded-xl border-2 border-dashed border-gray-200 hover:border-solid hover:border-indigo-300 hover:bg-gradient-to-br hover:from-white hover:to-indigo-50/30 transition-all duration-300"-->
+                      
+                      <!-- Icon in circle outline -->
+                      <!--div class="relative">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-full border-2 border-gray-200 group-hover:border-indigo-300 bg-white group-hover:bg-indigo-50 transition-all duration-300">
+                          <svg class="w-4 h-4 text-gray-500 group-hover:text-indigo-600 transform group-hover:-translate-x-0.5 transition-all duration-300" 
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div class="relative">
+                        <span class="text-lg font-semibold text-gray-800 group-hover:text-indigo-700 transition-colors duration-300">
+                          Return to User List
+                        </span>
+                        <div class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-400 group-hover:w-full transition-all duration-500 rounded-full"></div>
+                      </div>
+                    </button>
+                  </div-->
+               
+               
+                  <!--div class="mb-4">
                     <button on:click={backToUserList} class="text-indigo-600 hover:text-indigo-700 flex items-center space-x-2">
                       <span>←</span><span>Back to User List</span>
                     </button>
-                  </div>
-                  <!--h>UserRoleAssignment Coming</h-->
+                  </div-->
+               
 
                   <UserRoleAssignment
                     userIds={selectedUserIds}
                     mode={userManagementMode}
                     showHeader={false}
                     onSave={isEditing ? handleUserSave : null}
-                    onCancel={isEditing ? handleUserCancel : null}
+                    onCancel={handleUserCancel}                   
                   />
 
                   <!--UserRoleAssignment
