@@ -163,3 +163,6 @@ class UserModel(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     roles: List[str] = []
+
+
+    

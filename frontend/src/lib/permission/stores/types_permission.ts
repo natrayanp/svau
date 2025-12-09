@@ -139,15 +139,21 @@ export interface ApiError {
   timestamp: string;
 }
 
-export interface PaginatedData<T>  {
+
+export interface TableVersion {
+  table_name: string;        // Name of the table
+  table_version: number;     // Global version number for the table
+  org_id: number;            // Organization identifier that owns the table
+}
+
+export interface PaginatedData<T> {
   items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
-};
+  total: number;  
+  offset: number;
+  limit: number;
+  org_id: number;
+  version: TableVersion[];
+}
 
 
 // ==================== SPECIFIC API RESPONSE TYPES ====================

@@ -39,15 +39,11 @@ export function createEntityStore<T>(
   let isFullyCached = false;
   let lastQueryFilter: Record<string, any> | undefined = undefined;
   let lastQuerySort: any | undefined = undefined;
-
+  
   // NEW: Global fingerprint storage
   let currentOrgId = 0;
   let currentTableVersions = new Map<string, number>(); // table_name → version
   let currentQueryHash = ''; // Hash of current query (filter+sort)
-
-  // NEW: LRU eviction (always enabled)
-  const maxBlocks = Math.max(1, Math.floor(maxCacheableTotal / blockSize));
-  let cacheBlocks: number[] = []; // keeps track of cached blocks in LRU order (oldest first)
 
   function normalizeItem(item: T): T & { id: string | number } {
     const id = getId(item);
@@ -56,19 +52,19 @@ export function createEntityStore<T>(
 
   function transformFilterForBackend(filter: any, arrayFields: Set<string>): any {
     if (!filter) return filter;
-
+    
     const result = { ...filter };
-
+    
     for (const [key, value] of Object.entries(filter)) {
       if (key === 'q' || key === 'field' || key === 'fields') continue;
       if (value === undefined || value === null || value === 'all') continue;
-
+      
       if (arrayFields.has(key)) {
         result[`${key}_contains`] = [value];
         delete result[key];
       }
     }
-
+    
     return result;
   }
 
@@ -78,7 +74,7 @@ export function createEntityStore<T>(
       filter: filter || null,
       sort: sort || null
     };
-
+    
     // Simple hash - in production use a proper hashing function
     return JSON.stringify(queryObject);
   }
@@ -93,7 +89,7 @@ export function createEntityStore<T>(
     if (currentOrgId === 0 && currentTableVersions.size === 0) {
       return { changed: false };
     }
-
+    
     // Case 2: Organization changed
     if (currentOrgId !== newOrgId) {
       return { 
@@ -102,10 +98,10 @@ export function createEntityStore<T>(
         changedTables: ['*ALL*'] // Special marker for org change
       };
     }
-
+    
     // Case 3: Check table versions
     const changedTables: string[] = [];
-
+    
     // Check for version changes in existing tables
     for (const newVersion of newTableVersions) {
       const currentVersion = currentTableVersions.get(newVersion.table_name);
@@ -113,23 +109,23 @@ export function createEntityStore<T>(
         changedTables.push(newVersion.table_name);
       }
     }
-
+    
     // Check for tables added/removed
     const currentTableNames = Array.from(currentTableVersions.keys());
     const newTableNames = newTableVersions.map(v => v.table_name);
-
+    
     // Find tables that disappeared
     const removedTables = currentTableNames.filter(name => !newTableNames.includes(name));
     if (removedTables.length > 0) {
       changedTables.push(...removedTables.map(name => `${name} (removed)`));
     }
-
+    
     // Find tables that appeared
     const addedTables = newTableNames.filter(name => !currentTableNames.includes(name));
     if (addedTables.length > 0) {
       changedTables.push(...addedTables.map(name => `${name} (added)`));
     }
-
+    
     if (changedTables.length > 0) {
       return { 
         changed: true, 
@@ -137,7 +133,7 @@ export function createEntityStore<T>(
         changedTables 
       };
     }
-
+    
     return { changed: false };
   }
 
@@ -146,11 +142,11 @@ export function createEntityStore<T>(
     currentOrgId = newOrgId;
     currentTableVersions.clear();
     currentQueryHash = queryHash;
-
+    
     newTableVersions.forEach(v => {
       currentTableVersions.set(v.table_name, v.table_version);
     });
-
+    
     console.log(`📝 Updated fingerprint: org_id=${newOrgId}, query_hash=${queryHash.substring(0, 20)}..., versions=`, 
       Array.from(currentTableVersions.entries()));
   }
@@ -158,55 +154,13 @@ export function createEntityStore<T>(
   // NEW: Clear entire cache
   function clearCache() {
     cache.set({});
-    cacheBlocks = [];
     console.log('🗑️ Cleared entire cache');
   }
 
-  // NEW: sliding‑window eviction
-  function addBlock(blockNum: number, items: (T & { id: string | number })[]) {
-    const cacheVal = get(cache);
-    cacheVal[blockNum] = items;
-    cache.set({ ...cacheVal });
-
-    if (!cacheBlocks.includes(blockNum)) {
-      cacheBlocks.push(blockNum);
-      cacheBlocks.sort((a, b) => a - b);
-    }
-
-    if (cacheBlocks.length > maxBlocks) {
-      const evictBlock = cacheBlocks[0]; // evict lowest
-      delete cacheVal[evictBlock];
-      cacheBlocks.shift();
-      cache.set({ ...cacheVal });
-      console.log(`🗑️ Evicted block ${evictBlock}`);
-    }
-  }
-
-  function revisitBlock(blockNum: number, items: (T & { id: string | number })[]) {
-    const cacheVal = get(cache);
-    cacheVal[blockNum] = items; // always update
-    const idx = cacheBlocks.indexOf(blockNum);
-    if (idx !== -1) cacheBlocks.splice(idx, 1);
-    cacheBlocks.push(blockNum);
-    cacheBlocks.sort((a, b) => a - b);
-
-    if (cacheBlocks.length > maxBlocks) {
-      const evictBlock = cacheBlocks[0];
-      delete cacheVal[evictBlock];
-      cacheBlocks.shift();
-    }
-    cache.set({ ...cacheVal });
-  }
-
-
-  async function fetchBlock(
-    blockNum: number,
-    blockSizeArg: number,
-    opts?: { queryFilter?: any; querySort?: any }
-  ) {
+  async function fetchBlock(blockNum: number, blockSizeArg: number, opts?: { queryFilter?: any; querySort?: any }) {
     const offset = (blockNum - 1) * blockSizeArg;
     const limit = blockSizeArg;
-
+    
     loading.set(true);
     try {
       // Transform filters for backend
@@ -214,68 +168,74 @@ export function createEntityStore<T>(
       if (backendFilter && arrayFields.size > 0) {
         backendFilter = transformFilterForBackend(backendFilter, arrayFields);
       }
-
-      // Generate query hash for this request
-      const requestQueryHash = generateQueryHash(opts?.queryFilter, opts?.querySort);
-
-      const response = await apiFetch({
-        offset,
-        limit,
-        filter: backendFilter,
-        sort: opts?.querySort,
+      
+      // Generate query hash for current request
+      const currentQueryHash = generateQueryHash(opts?.queryFilter, opts?.querySort);
+      
+      const response = await apiFetch({ 
+        offset, 
+        limit, 
+        filter: backendFilter, 
+        sort: opts?.querySort 
       });
-
+      
       const newOrgId = response.org_id || 0;
       const newTableVersions = response.version || [];
       const items = (response.items ?? []).map(normalizeItem);
 
+      // Check if fingerprint changed
+      //const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
+      
+      // Check if query changed (filter/sort)
+      //const queryChanged = currentQueryHash !== this.currentQueryHash;
+
       let shouldClearCache = false;
+      
 
       if (currentOrgId === 0) {
-        // First request ever → initialize fingerprint
-        updateFingerprint(newOrgId, newTableVersions, requestQueryHash);
-      } else {
-        const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
-        const queryChanged = requestQueryHash !== currentQueryHash;
-
-        if (fingerprintCheck.changed) {
-          console.log(`🔄 ${fingerprintCheck.reason}`);
-          if (fingerprintCheck.changedTables) {
-            console.log(`   Changed tables: ${fingerprintCheck.changedTables.join(', ')}`);
-          }
-          shouldClearCache = true;
-        } else if (queryChanged) {
-          console.log(`🔄 Query changed (filter/sort)`);
-          shouldClearCache = true;
+        // 🟢 CASE: First request - initialize fingerprint
+        updateFingerprint(newOrgId, newTableVersions, currentQueryHash);
+      }else {
+      // Check for changes
+      const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
+      const queryChanged = currentQueryHash !== this.currentQueryHash;
+      
+      if (fingerprintCheck.changed) {
+        // 🔴 CASE: Fingerprint changed (org_id or table versions)
+        console.log(`🔄 ${fingerprintCheck.reason}`);
+        if (fingerprintCheck.changedTables) {
+          console.log(`   Changed tables: ${fingerprintCheck.changedTables.join(', ')}`);
         }
-
-        if (shouldClearCache) {
-          clearCache();
-          updateFingerprint(newOrgId, newTableVersions, requestQueryHash);
-        }
+        shouldClearCache = true;
+      } else if (queryChanged) {
+        // 🟡 CASE: Same data, different query (filter/sort changed)
+        console.log(`🔄 Query changed (filter/sort)`);
+        shouldClearCache = true;
       }
-
-      // Sliding-window cache logic
+      
+      if (shouldClearCache) {
+        clearCache();
+        updateFingerprint(newOrgId, newTableVersions, currentQueryHash);
+      }
+    }
+            
+      // Store in cache
       const cacheVal = get(cache);
-      if (cacheVal[blockNum]) {
-        revisitBlock(blockNum, items);
-      } else {
-        addBlock(blockNum, items);
-      }
-
+      cacheVal[blockNum] = items;
+      cache.set({ ...cacheVal });
+      
       // Update pagination total
-      pagination.update(p => ({
-        ...p,
-        total: response.total || items.length,
+      pagination.update(p => ({ 
+        ...p, 
+        total: response.total || items.length
       }));
-
+      
       return { items, total: response.total || items.length };
+      
     } finally {
       loading.set(false);
     }
   }
-
-
 
   // Use existing fetchEntityBlock reference
   const fetchEntityBlock = (blockNum: number) => 
@@ -302,9 +262,6 @@ export function createEntityStore<T>(
       if (!cacheVal[b]) {
         const { items } = await fetchBlock(b, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
         cacheVal[b] = items;
-      } else {
-        // mark as recently used
-        touchBlockInCache(b);
       }
     }
     cache.set({ ...cacheVal });
@@ -320,24 +277,10 @@ export function createEntityStore<T>(
         newCache[blockNum] = currentCache[blockNum];
       }
     }
-
+    
     cache.set(newCache);
-    // Rebuild cacheBlocks to reflect new cache state (preserve order of remaining)
-    cacheBlocks = Object.keys(newCache).map(k => Number(k)).sort((a, b) => a - b);
     console.log(`Cache invalidated from block ${startingBlockNum} onwards.`);
   }
-
-  function touchBlockInCache(blockNum: number) {
-    const cacheVal = get(cache);
-    if (!cacheVal[blockNum]) return; // block not cached
-    const idx = cacheBlocks.indexOf(blockNum);
-    if (idx !== -1) {
-      cacheBlocks.splice(idx, 1); // remove from current position
-    }
-    cacheBlocks.push(blockNum); // mark as most recently used (or keep ascending for sliding window)
-    cacheBlocks.sort((a, b) => a - b); // ensure ascending order
-  }
-
 
   // ------------------------------
   // Refactored setView (Pagination)
@@ -354,8 +297,6 @@ export function createEntityStore<T>(
       const { items, total } = await fetchBlock(1, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
       const cacheVal = get(cache);
       cacheVal[1] = items;
-      // mark block 1 as used
-      touchBlockInCache(1);
       cache.set({ ...cacheVal });
       backendTotal = total;
       pagination.update(p => ({ ...p, total }));
@@ -370,8 +311,6 @@ export function createEntityStore<T>(
       const { items } = await fetchBlock(targetBlockNum, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
       cacheVal[targetBlockNum] = items;
       cache.set({ ...cacheVal });
-    } else {
-      touchBlockInCache(targetBlockNum);
     }
 
     // If filter/sort requested and fully cached → load all blocks
@@ -416,7 +355,7 @@ export function createEntityStore<T>(
 
     if (filter.q) {
       const q = String(filter.q).toLowerCase();
-
+      
       if (filter.fields && Array.isArray(filter.fields)) {
         result = result.filter(item =>
           filter.fields.some(field =>
@@ -436,12 +375,12 @@ export function createEntityStore<T>(
     for (const [key, value] of Object.entries(filter)) {
       if (key === 'q' || key === 'field' || key === 'fields' || value === 'all') continue;
       if (value === undefined || value === null) continue;
-
+      
       const isArrayField = arrayFields.has(key);
-
+      
       result = result.filter(item => {
         const itemValue = (item as any)[key];
-
+        
         if (isArrayField) {
           return Array.isArray(itemValue) && itemValue.some(v => 
             String(v).toLowerCase() === String(value).toLowerCase()
@@ -526,11 +465,11 @@ export function createEntityStore<T>(
         await fetchEntityBlock(currentBlock);
         pagination.update(p => ({ ...p, total: p.total + normalized.length }));
       }
-
+      
       // Clear fingerprint on mutation (tables changed)
       currentTableVersions.clear();
       currentOrgId = 0;
-
+      
       return normalized;
     } finally {
       mutating.set(false);
@@ -555,11 +494,11 @@ export function createEntityStore<T>(
         const currentBlock = Math.floor((page - 1) * page_size / blockSize) + 1;
         await fetchEntityBlock(currentBlock);
       }
-
+      
       // Clear fingerprint on mutation (tables changed)
       currentTableVersions.clear();
       currentOrgId = 0;
-
+      
       return normalized;
     } finally {
       mutating.set(false);
@@ -587,11 +526,11 @@ export function createEntityStore<T>(
       } else {
         await fetchBlock(currentBlock, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
       }
-
+      
       // Clear fingerprint on mutation (tables changed)
       currentTableVersions.clear();
       currentOrgId = 0;
-
+      
     } catch (error) {
       console.error('Delete failed in store:', error);
       throw error;
@@ -619,15 +558,12 @@ export function createEntityStore<T>(
     if (nextPage <= totalPages) {
       const nextBlockNum = Math.floor((nextPage - 1) * pageSize / blockSize) + 1;
       if (!cacheVal[nextBlockNum]) {
-         const { items } = await fetchEntityBlock(nextBlockNum);
-       /* const { items } = await fetchBlock(nextBlockNum, blockSize, {
+        const { items } = await fetchBlock(nextBlockNum, blockSize, {
           queryFilter: lastQueryFilter,
           querySort: lastQuerySort
-        });*/
+        });
         cacheVal[nextBlockNum] = items;
         cache.set({ ...cacheVal });
-      } else {
-        touchBlockInCache(nextBlockNum);
       }
     }
 
@@ -635,15 +571,12 @@ export function createEntityStore<T>(
     if (prevPage >= 1) {
       const prevBlockNum = Math.floor((prevPage - 1) * pageSize / blockSize) + 1;
       if (!cacheVal[prevBlockNum]) {
-        const { items } = await fetchEntityBlock(prevBlockNum);
-        /*const { items } = await fetchBlock(prevBlockNum, blockSize, {
+        const { items } = await fetchBlock(prevBlockNum, blockSize, {
           queryFilter: lastQueryFilter,
           querySort: lastQuerySort
-        });*/
+        });
         cacheVal[prevBlockNum] = items;
         cache.set({ ...cacheVal });
-      } else {
-        touchBlockInCache(prevBlockNum);
       }
     }
   }

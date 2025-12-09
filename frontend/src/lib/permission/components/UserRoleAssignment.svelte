@@ -188,7 +188,8 @@
       const payloads: UserUpdatePayload[] = selectedUsers.map(u => ({
         user_id: u.id,
         email: u.email,
-        role: roleArray
+        roles: roleArray,
+        org_id:u.org_id
       }));
       
       await updateItem<UserUpdatePayload>(ids, payloads);

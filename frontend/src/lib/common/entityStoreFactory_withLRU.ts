@@ -162,48 +162,41 @@ export function createEntityStore<T>(
     console.log('🗑️ Cleared entire cache');
   }
 
-  // NEW: sliding‑window eviction
-  function addBlock(blockNum: number, items: (T & { id: string | number })[]) {
+  // NEW: LRU helpers
+  function addBlockToCache(blockNum: number, items: (T & { id: string | number })[]) {
     const cacheVal = get(cache);
     cacheVal[blockNum] = items;
     cache.set({ ...cacheVal });
 
-    if (!cacheBlocks.includes(blockNum)) {
-      cacheBlocks.push(blockNum);
-      cacheBlocks.sort((a, b) => a - b);
-    }
+    // If block already present in tracking, remove it (we will push as most-recent)
+    const existingIndex = cacheBlocks.indexOf(blockNum);
+    if (existingIndex !== -1) cacheBlocks.splice(existingIndex, 1);
 
-    if (cacheBlocks.length > maxBlocks) {
-      const evictBlock = cacheBlocks[0]; // evict lowest
-      delete cacheVal[evictBlock];
-      cacheBlocks.shift();
-      cache.set({ ...cacheVal });
-      console.log(`🗑️ Evicted block ${evictBlock}`);
+    cacheBlocks.push(blockNum); // newest at end
+
+    // Evict if exceed maxBlocks
+    while (cacheBlocks.length > maxBlocks) {
+      const evictBlock = cacheBlocks.shift(); // remove oldest
+      if (evictBlock !== undefined) {
+        const cv = get(cache);
+        delete cv[evictBlock];
+        cache.set({ ...cv });
+        console.log(`🗑️ Evicted block ${evictBlock}`);
+      }
     }
   }
 
-  function revisitBlock(blockNum: number, items: (T & { id: string | number })[]) {
+  function touchBlockInCache(blockNum: number) {
     const cacheVal = get(cache);
-    cacheVal[blockNum] = items; // always update
+    if (!cacheVal[blockNum]) return;
     const idx = cacheBlocks.indexOf(blockNum);
-    if (idx !== -1) cacheBlocks.splice(idx, 1);
-    cacheBlocks.push(blockNum);
-    cacheBlocks.sort((a, b) => a - b);
-
-    if (cacheBlocks.length > maxBlocks) {
-      const evictBlock = cacheBlocks[0];
-      delete cacheVal[evictBlock];
-      cacheBlocks.shift();
+    if (idx !== -1) {
+      cacheBlocks.splice(idx, 1);
     }
-    cache.set({ ...cacheVal });
+    cacheBlocks.push(blockNum); // mark as most recently used
   }
 
-
-  async function fetchBlock(
-    blockNum: number,
-    blockSizeArg: number,
-    opts?: { queryFilter?: any; querySort?: any }
-  ) {
+  async function fetchBlock(blockNum: number, blockSizeArg: number, opts?: { queryFilter?: any; querySort?: any }) {
     const offset = (blockNum - 1) * blockSizeArg;
     const limit = blockSizeArg;
 
@@ -215,67 +208,71 @@ export function createEntityStore<T>(
         backendFilter = transformFilterForBackend(backendFilter, arrayFields);
       }
 
-      // Generate query hash for this request
-      const requestQueryHash = generateQueryHash(opts?.queryFilter, opts?.querySort);
+      // Generate query hash for current request
+      const currentQueryHash = generateQueryHash(opts?.queryFilter, opts?.querySort);
 
-      const response = await apiFetch({
-        offset,
-        limit,
-        filter: backendFilter,
-        sort: opts?.querySort,
+      const response = await apiFetch({ 
+        offset, 
+        limit, 
+        filter: backendFilter, 
+        sort: opts?.querySort 
       });
 
       const newOrgId = response.org_id || 0;
       const newTableVersions = response.version || [];
       const items = (response.items ?? []).map(normalizeItem);
 
+      // Check if fingerprint changed
+      //const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
+
+      // Check if query changed (filter/sort)
+      //const queryChanged = currentQueryHash !== this.currentQueryHash;
+
       let shouldClearCache = false;
 
+
       if (currentOrgId === 0) {
-        // First request ever → initialize fingerprint
-        updateFingerprint(newOrgId, newTableVersions, requestQueryHash);
-      } else {
-        const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
-        const queryChanged = requestQueryHash !== currentQueryHash;
+        // 🟢 CASE: First request - initialize fingerprint
+        updateFingerprint(newOrgId, newTableVersions, currentQueryHash);
+      }else {
+      // Check for changes
+      const fingerprintCheck = hasFingerprintChanged(newOrgId, newTableVersions);
+      const queryChanged = currentQueryHash !== this.currentQueryHash;
 
-        if (fingerprintCheck.changed) {
-          console.log(`🔄 ${fingerprintCheck.reason}`);
-          if (fingerprintCheck.changedTables) {
-            console.log(`   Changed tables: ${fingerprintCheck.changedTables.join(', ')}`);
-          }
-          shouldClearCache = true;
-        } else if (queryChanged) {
-          console.log(`🔄 Query changed (filter/sort)`);
-          shouldClearCache = true;
+      if (fingerprintCheck.changed) {
+        // 🔴 CASE: Fingerprint changed (org_id or table versions)
+        console.log(`🔄 ${fingerprintCheck.reason}`);
+        if (fingerprintCheck.changedTables) {
+          console.log(`   Changed tables: ${fingerprintCheck.changedTables.join(', ')}`);
         }
-
-        if (shouldClearCache) {
-          clearCache();
-          updateFingerprint(newOrgId, newTableVersions, requestQueryHash);
-        }
+        shouldClearCache = true;
+      } else if (queryChanged) {
+        // 🟡 CASE: Same data, different query (filter/sort changed)
+        console.log(`🔄 Query changed (filter/sort)`);
+        shouldClearCache = true;
       }
 
-      // Sliding-window cache logic
-      const cacheVal = get(cache);
-      if (cacheVal[blockNum]) {
-        revisitBlock(blockNum, items);
-      } else {
-        addBlock(blockNum, items);
+      if (shouldClearCache) {
+        clearCache();
+        updateFingerprint(newOrgId, newTableVersions, currentQueryHash);
       }
+    }
+
+      // Store in cache using LRU-aware helper
+      addBlockToCache(blockNum, items);
 
       // Update pagination total
-      pagination.update(p => ({
-        ...p,
-        total: response.total || items.length,
+      pagination.update(p => ({ 
+        ...p, 
+        total: response.total || items.length
       }));
 
       return { items, total: response.total || items.length };
+
     } finally {
       loading.set(false);
     }
   }
-
-
 
   // Use existing fetchEntityBlock reference
   const fetchEntityBlock = (blockNum: number) => 
@@ -326,18 +323,6 @@ export function createEntityStore<T>(
     cacheBlocks = Object.keys(newCache).map(k => Number(k)).sort((a, b) => a - b);
     console.log(`Cache invalidated from block ${startingBlockNum} onwards.`);
   }
-
-  function touchBlockInCache(blockNum: number) {
-    const cacheVal = get(cache);
-    if (!cacheVal[blockNum]) return; // block not cached
-    const idx = cacheBlocks.indexOf(blockNum);
-    if (idx !== -1) {
-      cacheBlocks.splice(idx, 1); // remove from current position
-    }
-    cacheBlocks.push(blockNum); // mark as most recently used (or keep ascending for sliding window)
-    cacheBlocks.sort((a, b) => a - b); // ensure ascending order
-  }
-
 
   // ------------------------------
   // Refactored setView (Pagination)
@@ -619,11 +604,10 @@ export function createEntityStore<T>(
     if (nextPage <= totalPages) {
       const nextBlockNum = Math.floor((nextPage - 1) * pageSize / blockSize) + 1;
       if (!cacheVal[nextBlockNum]) {
-         const { items } = await fetchEntityBlock(nextBlockNum);
-       /* const { items } = await fetchBlock(nextBlockNum, blockSize, {
+        const { items } = await fetchBlock(nextBlockNum, blockSize, {
           queryFilter: lastQueryFilter,
           querySort: lastQuerySort
-        });*/
+        });
         cacheVal[nextBlockNum] = items;
         cache.set({ ...cacheVal });
       } else {
@@ -635,11 +619,10 @@ export function createEntityStore<T>(
     if (prevPage >= 1) {
       const prevBlockNum = Math.floor((prevPage - 1) * pageSize / blockSize) + 1;
       if (!cacheVal[prevBlockNum]) {
-        const { items } = await fetchEntityBlock(prevBlockNum);
-        /*const { items } = await fetchBlock(prevBlockNum, blockSize, {
+        const { items } = await fetchBlock(prevBlockNum, blockSize, {
           queryFilter: lastQueryFilter,
           querySort: lastQuerySort
-        });*/
+        });
         cacheVal[prevBlockNum] = items;
         cache.set({ ...cacheVal });
       } else {

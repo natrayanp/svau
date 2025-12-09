@@ -11,6 +11,7 @@ export interface RequestOptions {
   body?: string;
   cache?: boolean;
   cacheTTL?: number;
+  requestId?: string;
 }
 
 export const BASE_URL = PUBLIC_API_BASE_URL;
@@ -26,6 +27,7 @@ export class BaseApi {
   private inFlightRequests = new Map<string, Promise<any>>();
   private responseCache = new Map<string, { data: any; expiry: number }>();
 
+
   constructor(prefix = '', baseUrl = BASE_URL, useMock: boolean = GLOBAL_MOCK) {
     this.prefix = prefix;
 
@@ -37,6 +39,26 @@ export class BaseApi {
 
     console.log('BaseApi → baseUrl:', this.baseUrl);
     console.log('BaseApi → mock enabled:', this.useMock);
+  }
+
+
+   // Generate Request ID in format: req + <timestamp> + <microseconds> + <random>
+  private generateRequestId(): string {
+    // 1. Prefix
+    const prefix = 'req';
+    
+    // 3. Timestamp with microseconds
+    const timestamp = Date.now();
+    const microseconds = Math.floor(performance.now() * 1000) % 1000;
+    
+    // 4. Random component (4 hex chars)
+    const randomBytes = crypto.getRandomValues(new Uint8Array(2));
+    const randomHex = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    // Format: req_dev_1705324800123_456_ab12
+    return `${prefix}_${timestamp}_${microseconds.toString().padStart(3, '0')}_${randomHex}`;
   }
 
   /**
@@ -104,6 +126,8 @@ export class BaseApi {
     const bodyKey = options.body || '';
     const cacheKey = `${endpoint}:${method}:${bodyKey}`;
 
+    const requestId = options.requestId || this.generateRequestId();
+
     // Cache hit
     if (options.cache && this.responseCache.has(cacheKey)) {
       const c = this.responseCache.get(cacheKey)!;
@@ -131,6 +155,7 @@ export class BaseApi {
           method,
           headers: {
             'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
             ...(options.headers || {})
           },
           body: options.body

@@ -144,6 +144,56 @@ CREATE TABLE user_roles (
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
+
+CREATE TABLE TableVersion (
+    table_name     TEXT        NOT NULL,  -- Name of the source table
+    table_version  INT         NOT NULL,  -- Global version number for that table/org
+    org_id         INT         NOT NULL,  -- Organization identifier
+
+    PRIMARY KEY (table_name, org_id)      -- Ensures uniqueness per table/org
+);
+
+-- Function called by all triggers for table version
+CREATE OR REPLACE FUNCTION bump_table_version_statement()
+RETURNS trigger AS $$
+BEGIN
+    FOR org_rec IN
+        SELECT DISTINCT org_id FROM new_rows
+    LOOP
+        INSERT INTO TableVersion (table_name, table_version, org_id)
+        VALUES (TG_TABLE_NAME, 1, org_rec.org_id)
+        ON CONFLICT (table_name, org_id)
+        DO UPDATE SET table_version = TableVersion.table_version + 1;
+    END LOOP;
+
+    RETURN NULL; -- statement-level triggers must return NULL
+END;
+$$ LANGUAGE plpgsql;
+
+
+--PL/pgSQL Script for Auto‑Generating Triggers
+DO $$
+DECLARE
+    tbl TEXT;
+    trigger_sql TEXT;
+    tables TEXT[] := ARRAY['users', 'projects', 'orders']; -- add more table names here
+BEGIN
+    FOREACH tbl IN ARRAY tables
+    LOOP
+        trigger_sql := format($f$
+            CREATE TRIGGER trg_%I_version
+            AFTER INSERT OR UPDATE ON %I
+            REFERENCING NEW TABLE AS new_rows
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION bump_table_version_statement();
+        $f$, tbl, tbl);
+
+        EXECUTE trigger_sql;
+    END LOOP;
+END;
+$$;
+
+
 -- Optional: a convenience index to speed lookups
 CREATE INDEX idx_users_org_id ON users(org_id);
 CREATE INDEX idx_packages_org_id ON packages(org_id);

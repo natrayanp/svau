@@ -31,12 +31,18 @@ class ErrorResponse(BaseModel, Generic[E]):
     error: Optional[ErrorDetail[E]] = Field(None, description="Structured error information")
     timestamp: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
+
+class TableVersion(BaseModel):
+    table_name: str = Field(..., description="Name of the table")
+    table_version: int = Field(..., description="Global version number for the table")
+    org_id: int = Field(..., description="Organization identifier that owns the table")
+
+
 class PaginatedData(BaseModel, Generic[T]):
-    """Generic pagination wrapper"""
+    """Generic pagination wrapper with offset/limit and table version tracking"""
     items: List[T] = Field(..., description="List of items for current page")
     total: int = Field(..., description="Total number of items across all pages")
-    page: int = Field(..., description="Current page number (1-based)")
-    page_size: int = Field(..., description="Number of items per page")
-    total_pages: int = Field(..., description="Total number of pages")
-    has_next: bool = Field(..., description="Whether there is a next page")
-    has_prev: bool = Field(..., description="Whether there is a previous page")
+    offset: int = Field(..., description="Offset index for current page (0-based)")
+    limit: int = Field(..., description="Number of items per page (limit)")
+    org_id: int = Field(..., description="Organization identifier that owns the table")
+    version: List[TableVersion] = Field(..., description="Version info for related tables")
