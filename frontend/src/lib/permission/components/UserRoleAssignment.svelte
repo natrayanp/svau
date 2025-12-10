@@ -52,7 +52,7 @@
   $: isViewMode = mode === 'single' && selectedUsers.length === 1 && !onSave;
 
   $: availableRoles = safeRoles.map(role => ({
-    id: role.role_key,
+    id: role.role_id,
     name: role.display_name,
     power: role.power_level || 50,
     permissions: role.permission_count || 0,
@@ -144,7 +144,7 @@
     return;
   }
   roleSearchResults = await getRoles([], {
-    queryFilter: { q: roleSearchQuery, fields: ["role_key", "description"] }
+    queryFilter: { q: roleSearchQuery, fields: ["role_id", "description"] }
   });
 }
 

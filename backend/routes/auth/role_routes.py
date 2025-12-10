@@ -31,7 +31,7 @@ async def get_user_roles(
 ):
     """Get roles assigned to a user"""
     try:
-        user_data = db.execute_single(
+        user_data = await db.fetch_one(
             auth_query("GET_USER_BY_ID"),
             (user_id,)
         )
@@ -64,7 +64,7 @@ async def update_user_role(
             return error_response("Invalid role. Must be one of: basic, creator, moderator, admin")
         
         # Get current user data
-        user_data = db.execute_single(
+        user_data = await db.fetch_one(
             auth_query("GET_USER_BY_ID"),
             (user_id,)
         )
@@ -104,7 +104,7 @@ async def get_users_with_role(
         if role_name not in ["basic", "creator", "moderator", "admin"]:
             return error_response("Invalid role. Must be one of: basic, creator, moderator, admin")
         
-        users = db.execute_query(
+        users = await db.fetch_one(
             "SELECT id, email, display_name, role, created_at FROM users WHERE role = %s ORDER BY created_at DESC",
             (role_name,),
             fetch=True
@@ -148,7 +148,7 @@ async def bulk_update_user_roles(
             
             try:
                 # Get current user data
-                user_data = db.execute_single(
+                user_data = await db.fetch_one(
                     auth_query("GET_USER_BY_ID"),
                     (user_id,)
                 )
@@ -218,15 +218,15 @@ async def get_role_statistics(
 ):
     """Get statistics about role distribution"""
     try:
-        stats = db.execute_query(
+        stats = await db.fetch_one(
             """SELECT 
-                    ur.role_key,
+                    ur.role_id,
                     COUNT(DISTINCT ur.user_id) as user_count,
                     ROUND(COUNT(DISTINCT ur.user_id) * 100.0 / (SELECT COUNT(DISTINCT user_id) FROM user_roles), 2) as percentage,
                     -- Template usage stats
-                    (SELECT COUNT(DISTINCT template_id) FROM role_permissions rp WHERE rp.role_key = ur.role_key AND rp.is_template = true) as template_count
+                    (SELECT COUNT(DISTINCT template_id) FROM role_permissions rp WHERE rp.role_id = ur.role_id AND rp.is_template = true) as template_count
                 FROM user_roles ur
-                GROUP BY ur.role_key
+                GROUP BY ur.role_id
                 ORDER BY user_count DESC;
             """,
             fetch=True
@@ -270,7 +270,7 @@ async def assign_user_to_role(
             return error_response("Invalid role. Must be one of: basic, creator, moderator, admin")
         
         # Get current user data
-        user_data = db.execute_single(
+        user_data = await db.fetch_one(
             auth_query("GET_USER_BY_ID"),
             (user_id,)
         )
@@ -312,7 +312,7 @@ async def remove_user_from_role(
             return error_response("Invalid role name")
         
         # Get current user data
-        user_data = db.execute_single(
+        user_data = await db.fetch_one(
             auth_query("GET_USER_BY_ID"),
             (user_id,)
         )

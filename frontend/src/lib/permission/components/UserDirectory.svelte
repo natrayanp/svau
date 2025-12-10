@@ -54,17 +54,19 @@ const {
   // Debounce
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   const SEARCH_DEBOUNCE_MS = 300;
+  let rolesList: any[] = [];
+  let availableRoles: { value: string; label: string }[] = [];
 
   // Reactive subscriptions
   $: pagedUsers = $usersPagination?.items ?? [];
   $: loadingUsers = $usersLoading ?? false;
 
-  $: rolesList = Array.isArray($rolesPagination) ? $rolesPagination : $rolesPagination?.items ?? [];
+  $:rolesList = Array.isArray($rolesPagination) ? $rolesPagination : $rolesPagination?.items ?? [];
   $: availableRoles = [
     { value: 'all', label: 'All Roles' },
     ...(
       rolesList.length > 0
-        ? rolesList.map((r: any) => r.role_key ?? r.name ?? r).filter(Boolean)
+        ? rolesList.map((r: any) => r.role_id ?? r.name ?? r).filter(Boolean)
         : Array.from(new Set((pagedUsers ?? []).flatMap((u: any) => u.roles ?? [])))
     )
       .sort()
@@ -103,6 +105,7 @@ const {
 
   // Single place to request data
   function loadUsers(page: number = $currentPage) {
+    
     goToPage(page);
     applyFilter();
   }
@@ -194,6 +197,7 @@ const {
   // On mount: load roles and first page
   $: pageUrl = $pageStore?.url;
   onMount(() => {
+    console.log('loadusers');
     if ((rolesList ?? []).length === 0) rolesStore.setView(1, 100);
     try {
       const urlParams = new URLSearchParams(pageUrl?.search ?? '');

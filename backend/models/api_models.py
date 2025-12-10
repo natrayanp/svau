@@ -35,8 +35,6 @@ class ErrorResponse(BaseModel, Generic[E]):
 class TableVersion(BaseModel):
     table_name: str = Field(..., description="Name of the table")
     table_version: int = Field(..., description="Global version number for the table")
-    org_id: int = Field(..., description="Organization identifier that owns the table")
-
 
 class PaginatedData(BaseModel, Generic[T]):
     """Generic pagination wrapper with offset/limit and table version tracking"""

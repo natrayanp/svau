@@ -1,6 +1,6 @@
 # utils/response_utils.py
-from pydantic import BaseModel, Generic, TypeVar, Field
-from typing import Any, Optional, List, Dict, Type
+from typing import Any, Optional, List, Dict, Type, Generic, TypeVar
+from pydantic import BaseModel, Field
 from fastapi import HTTPException, status
 import datetime
 

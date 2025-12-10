@@ -48,15 +48,7 @@ else:
         "https://www.yourflashcardapp.com",
     ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=600
-)
+
 
 # Custom exception handler
 @app.exception_handler(HTTPException)
@@ -108,7 +100,15 @@ app.include_router(auth_routes.router)
 app.include_router(permission_routes.router)
 app.include_router(role_routes.router)
 #app.include_router(db_analytics_routes)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600
+)
 
 if __name__ == "__main__":
     import uvicorn

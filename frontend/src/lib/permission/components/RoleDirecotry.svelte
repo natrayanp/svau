@@ -35,7 +35,7 @@
     allPageItemsSelected,
     somePageItemsSelected,
     hasSelectedItems
-  } = usePageSelection(rolesPagination, 'role_key');
+  } = usePageSelection(rolesPagination, 'role_id');
 
   let searchTerm = '';
   let selectedPowerLevel = 'all';
@@ -121,7 +121,7 @@
   const duplicateRole = async (role: Role) => {
     if (addRoleMutation) {
       await addRoleMutation({
-        role_key: `${role.role_key}_copy_${Date.now()}`,
+        role_id: `${role.role_id}_copy_${Date.now()}`,
         display_name: `${role.display_name || 'Role'} Copy`,
         description: role.description,
         power_level: role.power_level,
@@ -139,7 +139,7 @@
 
     const confirmationText =
       $selectedRoleIds.length === 1
-        ? `Delete role "${pagedRoles.find(r => r.role_key === $selectedRoleIds[0])?.display_name ?? $selectedRoleIds[0]}"?`
+        ? `Delete role "${pagedRoles.find(r => r.role_id === $selectedRoleIds[0])?.display_name ?? $selectedRoleIds[0]}"?`
         : `Delete ${$selectedRoleIds.length} selected roles?`;
 
     if (confirm(confirmationText)) {
@@ -161,7 +161,7 @@
 
   const exportSelectedRolesCSV = () => {
     const selectedRoles = pagedRoles.filter(role => 
-      $selectedRoleIds.includes(String(role.role_key))
+      $selectedRoleIds.includes(String(role.role_id))
     );
     const rows = [
       ['Role Name', 'Description', 'Power Level', 'Users', 'Permissions', 'System Role'],
@@ -210,7 +210,7 @@
 
   $: {
     if (pagedRoles.length > 0) {
-      const currentPageKeys = new Set(pagedRoles.map((r: any) => String(r.role_key)));
+      const currentPageKeys = new Set(pagedRoles.map((r: any) => String(r.role_id)));
       selectedRoleIds.set($selectedRoleIds.filter(id => currentPageKeys.has(id)));
     } else {
       clearSelection();
@@ -343,7 +343,7 @@
               <tr class="hover:bg-gray-50 transition-colors duration-150">
                 <!-- Checkbox -->
                 <td class="px-4 py-4 whitespace-nowrap">
-                  <input type="checkbox" checked={$selectedRoleIds.includes(String(role.role_key))} on:change={() => toggleSelection(role.role_key)} class="h-4 w-4 rounded border-gray-300" />
+                  <input type="checkbox" checked={$selectedRoleIds.includes(String(role.role_id))} on:change={() => toggleSelection(role.role_id)} class="h-4 w-4 rounded border-gray-300" />
                 </td>
 
                 <!-- Role Info -->
@@ -397,7 +397,7 @@
                     {#if onViewRole}<button on:click={() => onViewRole(role)} class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="View Role Details">👁️</button>{/if}
                     {#if onEditRole}<button on:click={() => onEditRole(role)} class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Edit Role">✏️</button>{/if}
                     <button on:click={() => duplicateRole(role)} class="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors" title="Duplicate Role">📋</button>
-                    <button on:click={() => deleteRole(role.role_key, role.display_name)} disabled={role.is_system_role} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" title={role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}>🗑️</button>
+                    <button on:click={() => deleteRole(role.role_id, role.display_name)} disabled={role.is_system_role} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" title={role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}>🗑️</button>
                   </div>
                 </td>
               </tr>

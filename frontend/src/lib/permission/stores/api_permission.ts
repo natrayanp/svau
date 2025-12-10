@@ -160,9 +160,9 @@ class PermissionApi extends BaseApi {
   // Permission Structure
 async getPermissionStructure(): Promise<PermissionStructure> {
   console.log('getPermissionStructure1');
-  const response = await this.request<PermissionStructureResponse>('/structure');
+  const response = await this.request<ApiResponse<PermissionStructure>>('/structure');
   console.log('getPermissionStructure2');
-  return this.handleResponse<PermissionStructure>(response); // handleResponse returns PermissionStructure
+  return (this.handleResponse<PermissionStructure>(response)) as PermissionStructure; // handleResponse returns PermissionStructure
 }
 
 
@@ -216,6 +216,21 @@ async getPermissionStructure(): Promise<PermissionStructure> {
     const data = this.handleResponse(response);
     // data = { roles: [...], total_roles: 4 }
     return data as PaginatedData<Role>;
+  }
+
+  async updateRole(updates: Partial<Role>[]): Promise<Role[]> {
+    // Call backend endpoint
+    console.log(updates);
+    const response = await this.request<ApiResponse<Role[]>>(
+      '/roles/update',
+      {
+        method: 'POST',   // or POST depending on backend
+        body: JSON.stringify({action:'update',data:updates})  // send array of payloads
+      }
+    );
+
+    const data = this.handleResponse<Role[]>(response);
+    return data as Role[];
   }
 
 }

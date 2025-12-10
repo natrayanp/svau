@@ -15,9 +15,14 @@ export type UserPaginationData = PaginatedData<User>;
 
 // Derive from User, but allow extra fields
 export type UserUpdatePayload = {
-  user_id: string; // required
-  org_id: string[]; // required
-} & Partial<Omit<User, 'user_id' | 'org_id'>>;
+  user_id: string;                // Primary key
+  uid: string;               // Unique external identifier
+  email: string;             // User email
+  display_name?: string;     // Optional display name
+  org_id: string;            // Organization foreign key
+  email_verified: boolean;   // Whether email is verified
+  roles: string[];           // List of role keys assigned to the user
+};
 
 export type ApiFetch = {
   offset: number;
@@ -32,7 +37,7 @@ export type RolePermissions = {
   };
 
 export interface Role {
-  role_key: string;
+  role_id: string;
   display_name: string;
   description: string;
   is_system_role: boolean;

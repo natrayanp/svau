@@ -1,369 +1,149 @@
---📁 1. organizations.sql (Run FIRST)
-
+--1. Organizations
 
 INSERT INTO organizations (name, slug, status) VALUES
 ('TechCorp Inc', 'techcorp', 'AC'),
 ('EduLearn Academy', 'edulearn', 'AC'),
-('HealthPlus Systems', 'healthplus', 'AC'),
-('Global Innovations', 'global-innovations', 'AC');
---📁 2. users.sql (Run SECOND)
-
+('HealthPlus Systems', 'healthplus', 'AC');
+--2. Users
 
 INSERT INTO users (uid, email, display_name, org_id, email_verified, status) VALUES
--- TechCorp Inc (org_id: 1)
+-- TechCorp
 ('auth0|tech001', 'admin@techcorp.com', 'Sarah Admin', 1, true, 'AC'),
 ('auth0|tech002', 'john.dev@techcorp.com', 'John Developer', 1, true, 'AC'),
 ('auth0|tech003', 'lisa.design@techcorp.com', 'Lisa Designer', 1, true, 'AC'),
-('auth0|tech004', 'mike.qa@techcorp.com', 'Mike Tester', 1, true, 'AC'),
 
--- EduLearn Academy (org_id: 2)
+-- EduLearn
 ('auth0|edu001', 'director@edulearn.com', 'Dr. Emily Director', 2, true, 'AC'),
 ('auth0|edu002', 'teacher@edulearn.com', 'Mark Teacher', 2, true, 'AC'),
 ('auth0|edu003', 'student@edulearn.com', 'Alex Student', 2, true, 'AC'),
 
--- HealthPlus Systems (org_id: 3)
+-- HealthPlus
 ('auth0|health001', 'admin@healthplus.com', 'Dr. Sarah Admin', 3, true, 'AC'),
 ('auth0|health002', 'doctor@healthplus.com', 'Dr. Mike Physician', 3, true, 'AC'),
 ('auth0|health003', 'nurse@healthplus.com', 'Nurse Lisa', 3, true, 'AC');
---📁 3. action_definitions.sql (Run THIRD - independent)
-
+--3. Action Definitions
 
 INSERT INTO action_definitions (action_key, display_name, description, power_level, category, status) VALUES
--- Basic actions (1-20)
 ('view', 'View', 'Can view content', 10, 'content', 'AC'),
-('export', 'Export', 'Can export data', 15, 'content', 'AC'),
-('analytics', 'Analytics', 'Can view analytics', 20, 'analytics', 'AC'),
 ('create', 'Create', 'Can create content', 25, 'content', 'AC'),
-('edit', 'Edit', 'Can modify content', 30, 'content', 'AC'),
-
--- Intermediate actions (35-50)
-('import', 'Import', 'Can import data', 35, 'content', 'AC'),
-('publish', 'Publish', 'Can publish content', 40, 'content', 'AC'),
-('approve', 'Approve', 'Can approve content', 45, 'workflow', 'AC'),
-('schedule', 'Schedule', 'Can schedule content', 48, 'content', 'AC'),
-
--- Administrative actions (60-100)
-('delete', 'Delete', 'Can remove content', 60, 'administration', 'AC'),
-('archive', 'Archive', 'Can archive content', 65, 'administration', 'AC'),
+('edit', 'Edit', 'Can edit content', 30, 'content', 'AC'),
+('delete', 'Delete', 'Can delete content', 60, 'administration', 'AC'),
 ('manage_users', 'Manage Users', 'Can manage user accounts', 80, 'user_management', 'AC'),
-('system_config', 'System Config', 'Can configure system settings', 95, 'system', 'AC'),
 ('admin_access', 'Admin Access', 'Full administrative access', 100, 'system', 'AC');
---📁 4. permission_structures.sql (Run FOURTH - independent)
+--4. Permission Structures
+-- Content Module
+INSERT INTO permission_structures (record_type, key, name, description, icon, color, display_order, allowed_actions, status)
+VALUES ('module', 'content', 'Content Management', 'Manage content', '📚', 'blue', 1, '["view"]', 'AC');
 
+-- Articles Menu
+INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status)
+VALUES ('menu', 'articles', 'Articles', 'Manage articles', 1, 1, '["view","create","edit","delete"]', 'AC');
 
--- Clear and start fresh
-TRUNCATE permission_structures RESTART IDENTITY CASCADE;
+-- Create Article Card
+INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status)
+VALUES ('card', 'create_article', 'Create Article', 'Create new articles', 1, 2, '["create"]', 'AC');
 
--- =====================
--- MODULE 1: CONTENT MANAGEMENT (permissstruct_id: 1)
--- =====================
-INSERT INTO permission_structures (record_type, key, name, description, icon, color, display_order, allowed_actions, status) VALUES
-('module', 'content', 'Content Management', 'Manage all types of content', '📚', 'blue', 1, '["view"]', 'AC');
+-- User Management Module
+INSERT INTO permission_structures (record_type, key, name, description, icon, color, display_order, allowed_actions, status)
+VALUES ('module', 'users', 'User Management', 'Manage users and roles', '👥', 'green', 2, '["view"]', 'AC');
 
--- Content Management Menus
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('menu', 'articles', 'Articles', 'Manage blog articles and posts', 1, 1, '["view", "create", "edit", "delete", "publish"]', 'AC'),
-('menu', 'media_library', 'Media Library', 'Manage images, videos and files', 2, 1, '["view", "create", "edit", "delete", "import"]', 'AC'),
-('menu', 'categories', 'Categories', 'Manage content categories', 3, 1, '["view", "create", "edit", "delete"]', 'AC'),
-('menu', 'content_analytics', 'Content Analytics', 'View content performance', 4, 1, '["view", "export", "analytics"]', 'AC');
+-- Roles Menu
+INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status)
+VALUES ('menu', 'roles', 'Roles & Permissions', 'Manage roles', 1, 4, '["view","create","edit","delete","manage_users"]', 'AC');
+--5. Role Permissions
 
--- Articles Cards (parent_id: 2)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'create_article', 'Create Article', 'Create new blog articles', 1, 2, '["create"]', 'AC'),
-('card', 'edit_article', 'Edit Article', 'Modify existing articles', 2, 2, '["edit"]', 'AC'),
-('card', 'publish_article', 'Publish Article', 'Publish articles live', 3, 2, '["publish"]', 'AC'),
-('card', 'delete_article', 'Delete Article', 'Remove articles permanently', 4, 2, '["delete"]', 'AC');
-
--- Media Library Cards (parent_id: 3)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'upload_media', 'Upload Media', 'Upload new media files', 1, 3, '["create"]', 'AC'),
-('card', 'organize_media', 'Organize Media', 'Organize media into folders', 2, 3, '["edit"]', 'AC'),
-('card', 'delete_media', 'Delete Media', 'Remove media files', 3, 3, '["delete"]', 'AC');
-
--- Categories Cards (parent_id: 4)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'create_category', 'Create Category', 'Create new categories', 1, 4, '["create"]', 'AC'),
-('card', 'edit_category', 'Edit Category', 'Modify category details', 2, 4, '["edit"]', 'AC');
-
--- Content Analytics Cards (parent_id: 5)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'view_analytics', 'View Analytics', 'View content performance metrics', 1, 5, '["view", "analytics"]', 'AC'),
-('card', 'export_reports', 'Export Reports', 'Export analytical reports', 2, 5, '["export"]', 'AC');
-
--- =====================
--- MODULE 2: USER MANAGEMENT (permissstruct_id: 11)
--- =====================
-INSERT INTO permission_structures (record_type, key, name, description, icon, color, display_order, allowed_actions, status) VALUES
-('module', 'users', 'User Management', 'Manage users and permissions', '👥', 'green', 2, '["view"]', 'AC');
-
--- User Management Menus
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('menu', 'user_profiles', 'User Profiles', 'Manage user accounts', 1, 11, '["view", "create", "edit", "delete", "manage_users"]', 'AC'),
-('menu', 'roles_permissions', 'Roles & Permissions', 'Manage roles and access', 2, 11, '["view", "create", "edit", "delete", "manage_users"]', 'AC'),
-('menu', 'activity_logs', 'Activity Logs', 'View user activity history', 3, 11, '["view", "export", "analytics"]', 'AC');
-
--- User Profiles Cards (parent_id: 12)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'create_user', 'Create User', 'Create new user accounts', 1, 12, '["create"]', 'AC'),
-('card', 'edit_user', 'Edit User', 'Modify user profiles', 2, 12, '["edit"]', 'AC'),
-('card', 'deactivate_user', 'Deactivate User', 'Deactivate user accounts', 3, 12, '["delete"]', 'AC');
-
--- Roles & Permissions Cards (parent_id: 13)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'create_role', 'Create Role', 'Create new roles', 1, 13, '["create"]', 'AC'),
-('card', 'assign_permissions', 'Assign Permissions', 'Assign permissions to roles', 2, 13, '["edit"]', 'AC'),
-('card', 'manage_role_access', 'Manage Access', 'Manage role-based access', 3, 13, '["edit", "manage_users"]', 'AC');
-
--- Activity Logs Cards (parent_id: 14)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'view_logs', 'View Logs', 'View user activity logs', 1, 14, '["view"]', 'AC'),
-('card', 'export_logs', 'Export Logs', 'Export activity data', 2, 14, '["export"]', 'AC');
-
--- =====================
--- MODULE 3: SYSTEM ADMIN (permissstruct_id: 18)
--- =====================
-INSERT INTO permission_structures (record_type, key, name, description, icon, color, display_order, allowed_actions, status) VALUES
-('module', 'system', 'System Administration', 'System configuration and settings', '⚙️', 'purple', 3, '["view"]', 'AC');
-
--- System Admin Menus
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('menu', 'system_settings', 'System Settings', 'Configure system preferences', 1, 18, '["view", "edit", "system_config"]', 'AC'),
-('menu', 'security', 'Security', 'Manage security settings', 2, 18, '["view", "edit", "system_config"]', 'AC'),
-('menu', 'backup_restore', 'Backup & Restore', 'Manage system backups', 3, 18, '["view", "create", "edit", "system_config"]', 'AC'),
-('menu', 'api_management', 'API Management', 'Manage API access and keys', 4, 18, '["view", "create", "edit", "delete"]', 'AC'),
-('menu', 'system_health', 'System Health', 'Monitor system performance', 5, 18, '["view", "analytics"]', 'AC'),
-('menu', 'audit_trail', 'Audit Trail', 'View system audit logs', 6, 18, '["view", "export"]', 'AC');
-
--- System Settings Cards (parent_id: 19)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'general_settings', 'General Settings', 'Configure general preferences', 1, 19, '["view", "edit"]', 'AC'),
-('card', 'email_settings', 'Email Settings', 'Configure email services', 2, 19, '["view", "edit"]', 'AC');
-
--- Security Cards (parent_id: 20)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'password_policies', 'Password Policies', 'Manage password requirements', 1, 20, '["view", "edit"]', 'AC'),
-('card', 'two_factor_auth', 'Two-Factor Auth', 'Configure 2FA settings', 2, 20, '["view", "edit"]', 'AC');
-
--- Backup & Restore Cards (parent_id: 21)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'create_backup', 'Create Backup', 'Create system backups', 1, 21, '["create"]', 'AC'),
-('card', 'restore_backup', 'Restore Backup', 'Restore from backup', 2, 21, '["edit"]', 'AC');
-
--- API Management Cards (parent_id: 22)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'generate_api_key', 'Generate API Key', 'Create new API keys', 1, 22, '["create"]', 'AC'),
-('card', 'manage_api_access', 'Manage API Access', 'Control API permissions', 2, 22, '["edit"]', 'AC');
-
--- System Health Cards (parent_id: 23)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'view_metrics', 'View Metrics', 'View system performance', 1, 23, '["view", "analytics"]', 'AC'),
-('card', 'monitor_services', 'Monitor Services', 'Monitor running services', 2, 23, '["view"]', 'AC');
-
--- Audit Trail Cards (parent_id: 24)
-INSERT INTO permission_structures (record_type, key, name, description, display_order, parent_id, allowed_actions, status) VALUES
-('card', 'view_audit_logs', 'View Audit Logs', 'View system audit history', 1, 24, '["view"]', 'AC'),
-('card', 'export_audit_data', 'Export Audit Data', 'Export audit information', 2, 24, '["export"]', 'AC');
---📁 5. role_permissions.sql (Run FIFTH - depends on permission_structures)
-
-
-TRUNCATE role_permissions RESTART IDENTITY CASCADE;
-
--- =====================
--- MODULE-LEVEL PERMISSIONS (permission_id: 1-3)
--- =====================
 INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
-(1, '["view"]', 'AC'),   -- Content Management module view
-(11, '["view"]', 'AC'),  -- User Management module view
-(18, '["view"]', 'AC');  -- System Admin module view
+(1, '["view"]', 'AC'),
+(2, '["view","create","edit"]', 'AC'),
+(3, '["create"]', 'AC'),
+(4, '["view"]', 'AC'),
+(5, '["view","create","edit","delete","manage_users"]', 'AC');
+--6. Roles
 
--- =====================
--- MENU VIEW PERMISSIONS (permission_id: 4-15)
--- =====================
-INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
--- Content Management Menus
-(2, '["view"]', 'AC'), (3, '["view"]', 'AC'), (4, '["view"]', 'AC'), (5, '["view"]', 'AC'),
--- User Management Menus
-(12, '["view"]', 'AC'), (13, '["view"]', 'AC'), (14, '["view"]', 'AC'),
--- System Admin Menus
-(19, '["view"]', 'AC'), (20, '["view"]', 'AC'), (21, '["view"]', 'AC'), (22, '["view"]', 'AC'), (23, '["view"]', 'AC'), (24, '["view"]', 'AC');
+-- TechCorp Roles
+INSERT INTO roles (org_id, display_name, description, created_by, status)
+VALUES
+( 1, 'Viewer', 'Can view content only', 1, 'AC'),
+( 1, 'Creator', 'Can create and edit content', 1, 'AC'),
+(1, 'Administrator', 'Full system access', 1, 'AC');
 
--- =====================
--- CONTENT CREATOR PERMISSIONS (permission_id: 16-25)
--- =====================
-INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
-(2, '["view", "create", "edit"]', 'AC'),
-(3, '["view", "create", "edit"]', 'AC'),
-(4, '["view", "create", "edit"]', 'AC'),
-(6, '["create"]', 'AC'),   -- Create Article
-(7, '["edit"]', 'AC'),     -- Edit Article
-(8, '["publish"]', 'AC'),  -- Publish Article
-(9, '["create"]', 'AC'),   -- Upload Media
-(10, '["edit"]', 'AC'),    -- Organize Media
-(15, '["create"]', 'AC');  -- Create Category
+-- EduLearn Roles
+INSERT INTO roles (org_id, display_name, description, created_by, status)
+VALUES
+( 2, 'Student', 'Can view content', 5, 'AC'),
+( 2, 'Teacher', 'Can create and manage content', 5, 'AC'),
+(2, 'School Admin', 'Full school management', 5, 'AC');
 
--- =====================
--- CONTENT MANAGER PERMISSIONS (permission_id: 26-35)
--- =====================
-INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
-(2, '["view", "create", "edit", "delete", "publish"]', 'AC'),
-(3, '["view", "create", "edit", "delete", "import"]', 'AC'),
-(4, '["view", "create", "edit", "delete"]', 'AC'),
-(11, '["delete"]', 'AC'),  -- Delete Article
-(12, '["delete"]', 'AC'),  -- Delete Media
-(5, '["view", "export", "analytics"]', 'AC'),
-(16, '["view", "analytics"]', 'AC'),
-(17, '["export"]', 'AC');
-
--- =====================
--- USER MANAGEMENT PERMISSIONS (permission_id: 36-45)
--- =====================
-INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
-(12, '["view", "create", "edit", "delete", "manage_users"]', 'AC'),
-(13, '["view", "create", "edit", "delete", "manage_users"]', 'AC'),
-(14, '["view", "export", "analytics"]', 'AC'),
-(25, '["create"]', 'AC'),  -- Create User
-(26, '["edit"]', 'AC'),    -- Edit User
-(27, '["delete"]', 'AC'),  -- Deactivate User
-(28, '["create"]', 'AC'),  -- Create Role
-(29, '["edit"]', 'AC'),    -- Assign Permissions
-(30, '["edit", "manage_users"]', 'AC'), -- Manage Access
-(31, '["view"]', 'AC'),    -- View Logs
-(32, '["export"]', 'AC');  -- Export Logs
-
--- =====================
--- SYSTEM ADMIN PERMISSIONS (permission_id: 46-60)
--- =====================
-INSERT INTO role_permissions (structure_id, granted_actions, status) VALUES
-(19, '["view", "edit", "system_config"]', 'AC'),
-(20, '["view", "edit", "system_config"]', 'AC'),
-(21, '["view", "create", "edit", "system_config"]', 'AC'),
-(22, '["view", "create", "edit", "delete"]', 'AC'),
-(23, '["view", "analytics"]', 'AC'),
-(24, '["view", "export"]', 'AC'),
-(33, '["view", "edit"]', 'AC'),    -- General Settings
-(34, '["view", "edit"]', 'AC'),    -- Email Settings
-(35, '["view", "edit"]', 'AC'),    -- Password Policies
-(36, '["view", "edit"]', 'AC'),    -- Two-Factor Auth
-(37, '["create"]', 'AC'),          -- Create Backup
-(38, '["edit"]', 'AC'),            -- Restore Backup
-(39, '["create"]', 'AC'),          -- Generate API Key
-(40, '["edit"]', 'AC'),            -- Manage API Access
-(41, '["view", "analytics"]', 'AC'), -- View Metrics
-(42, '["view"]', 'AC'),            -- Monitor Services
-(43, '["view"]', 'AC'),            -- View Audit Logs
-(44, '["export"]', 'AC');          -- Export Audit Data
---📁 6. packages.sql (Run SIXTH - depends on organizations and users)
+-- HealthPlus Roles
+INSERT INTO roles ( org_id, display_name, description, created_by, status)
+VALUES
+( 3, 'Medical Viewer', 'Can view medical content', 8, 'AC'),
+( 3, 'Medical Practitioner', 'Can manage patient content', 8, 'AC'),
+(3, 'Clinic Admin', 'Full clinic management', 8, 'AC');
 
 
-INSERT INTO packages (org_id, package_name, package_key, description, allowed_menu_ids, max_users, max_storage_mb, features, price_monthly, price_yearly, currency, billing_cycle, effective_date, expiry_date, grace_period_days, status, is_trial, auto_renew, created_by) VALUES
--- TechCorp - Enterprise (All menus)
-(1, 'Enterprise Suite', 'enterprise', 'Complete platform access for large teams',
- '[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]',
- 100, 10240,
- '{"ai_analytics": true, "advanced_reports": true, "api_access": true, "custom_domains": true, "priority_support": true}',
- 299.00, 2990.00, 'USD', 'monthly', '2024-01-01', '2024-12-31', 30, 'AC', false, true, 1),
+--7. User Rolesl
+-- Example for TechCorp Viewer role (assume role_id = 1)
+INSERT INTO role_permissions (role_id, structure_id, granted_actions, status)
+VALUES
+(1, 1, '["module_view"]', 'AC');
 
--- EduLearn - Professional (Most features)
-(2, 'Professional Plan', 'professional', 'Advanced features for educational institutions',
- '[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]',
- 50, 5120,
- '{"ai_analytics": true, "advanced_reports": true, "api_access": true}',
- 149.00, 1490.00, 'USD', 'monthly', '2024-01-01', '2024-12-31', 14, 'AC', false, true, 5),
+-- Example for TechCorp Creator role (assume role_id = 2)
+INSERT INTO role_permissions (role_id, structure_id, granted_actions, status)
+VALUES
+(2, 1, '["module_view","module_create","module_edit"]', 'AC');
 
--- HealthPlus - Starter (Basic features)
-(3, 'Starter Package', 'starter', 'Essential features for small teams',
- '[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]',
- 25, 2048,
- '{"ai_analytics": false, "advanced_reports": false, "api_access": false}',
- 49.00, 490.00, 'USD', 'monthly', '2024-01-01', '2024-12-31', 7, 'AC', false, true, 8);
---📁 7. roles.sql (Run SEVENTH - depends on organizations and users)
+-- Example for TechCorp Admin role (assume role_id = 3)
+INSERT INTO role_permissions (role_id, structure_id, granted_actions, status)
+VALUES
+(3, 1, '["module_view","module_create","module_edit","module_delete","system_manage"]', 'AC');
 
 
-TRUNCATE roles RESTART IDENTITY CASCADE;
+
+--8. Packages
+INSERT INTO packages (org_id, package_name, package_key, description, allowed_menu_ids, max_users, max_storage_mb, features,
+price_monthly, price_yearly, currency, billing_cycle, effective_date, expiry_date, grace_period_days, status, is_trial, auto_renew, created_by)
+VALUES
+-- TechCorp
+(1, 'Enterprise Suite', 'enterprise', 'Full platform access',
+ '[2,3,4,5]', 100, 10240,
+ '{"ai_analytics": true, "api_access": true}', 299.00, 2990.00, 'USD', 'monthly',
+ '2024-01-01', '2024-12-31', 30, 'AC', false, true, 1),
+
+-- EduLearn
+(2, 'Professional Plan', 'professional', 'Advanced features for schools',
+ '[2,3,4]', 50, 5120,
+ '{"ai_analytics": true}', 149.00, 1490.00, 'USD', 'monthly',
+ '2024-01-01', '2024-12-31', 14, 'AC', false, true, 4),
+
+-- HealthPlus
+(3, 'Starter Package', 'starter', 'Basic features for clinics',
+ '[2,3]', 25, 2048,
+ '{"ai_analytics": false}', 49.00, 490.00, 'USD', 'monthly',
+ '2024-01-01', '2024-12-31', 7, 'AC', false, true, 7);
+
 
 -- =====================
 -- TECHCORP INC (org_id: 1)
 -- =====================
-INSERT INTO roles (role_key, org_id, display_name, description, permission_ids, created_by, status) VALUES
-('viewer', 1, 'Content Viewer', 'Can view content only', 
- '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]', 1, 'AC'),
-
-('creator', 1, 'Content Creator', 'Can create and edit content',
- '[1,2,3,4,16,17,18,19,20,21,22,23,24,25]', 1, 'AC'),
-
-('manager', 1, 'Content Manager', 'Can manage all content operations',
- '[1,2,3,4,26,27,28,29,30,31,32,33,34,35]', 1, 'AC'),
-
-('user_admin', 1, 'User Administrator', 'Can manage users and roles',
- '[1,11,36,37,38,39,40,41,42,43,44,45]', 1, 'AC'),
-
-('admin', 1, 'System Administrator', 'Full system access',
- '[1,11,18,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60]', 1, 'AC');
+INSERT INTO user_roles (user_id, role_id, org_id, created_by, status) VALUES
+(1, 1, 1, 1, 'AC'),  -- Sarah Admin
+(2, 2, 1, 1, 'AC'),  -- John Developer
+(3, 3, 1, 1, 'AC'),  -- Lisa Designer
+(4, 4, 1, 1, 'AC');  -- Mike Tester
 
 -- =====================
 -- EDULEARN ACADEMY (org_id: 2)
 -- =====================
-INSERT INTO roles (role_key, org_id, display_name, description, permission_ids, created_by, status) VALUES
-('student', 2, 'Student', 'Can view educational content',
- '[1,2,3,4,5,6,7,8,9,10]', 5, 'AC'),
-
-('teacher', 2, 'Teacher', 'Can create and manage educational content',
- '[1,2,3,4,16,17,18,19,20,21,22,23,24,25,26,27,28]', 5, 'AC'),
-
-('admin', 2, 'School Administrator', 'Full school management access',
- '[1,11,18,26,27,28,29,30,31,32,33,34,35,36,37,38]', 5, 'AC');
+INSERT INTO user_roles (user_id, role_id, org_id, created_by, status) VALUES
+(5, 1, 2, 5, 'AC'),  -- Dr. Emily Director
+(6, 5, 2, 5, 'AC'),  -- Mark Teacher
+(7, 6, 2, 5, 'AC');  -- Alex Student
 
 -- =====================
 -- HEALTHPLUS SYSTEMS (org_id: 3)
 -- =====================
-INSERT INTO roles (role_key, org_id, display_name, description, permission_ids, created_by, status) VALUES
-('viewer', 3, 'Medical Viewer', 'Can view medical content',
- '[1,2,3,4,5,6,7,8,9,10,11,12,13]', 8, 'AC'),
-
-('practitioner', 3, 'Medical Practitioner', 'Can manage patient content',
- '[1,2,3,4,16,17,18,19,20,21,22,23,24,25,26,27]', 8, 'AC'),
-
-('admin', 3, 'Clinic Administrator', 'Full clinic management',
- '[1,11,18,26,27,28,29,30,31,32,33,34,35,36,37,38,46,47]', 8, 'AC');
-
--- =====================
--- TEMPLATE ROLES (All in org_id: 1 but with unique role_keys)
--- =====================
-INSERT INTO roles (role_key, org_id, display_name, description, permission_ids, is_template, template_id, template_name, template_description, template_category, created_by, status) VALUES
-('content_moderator_tpl', 1, 'Content Moderator', 'Can moderate user content', 
- '[1,2,3,4,16,17,18,19,20,21,22]', true, 'content_moderator', 'Content Moderator', 'Can moderate user-generated content', 'moderation', 1, 'AC'),
-
-('report_viewer_tpl', 1, 'Report Viewer', 'Can view and export reports',
- '[1,2,3,4,5,15,16,17,31,32,43,44]', true, 'report_viewer', 'Report Viewer', 'Can view and export reports', 'analytics', 1, 'AC'),
-
-('system_auditor_tpl', 1, 'System Auditor', 'Can audit system activities',
- '[1,11,18,14,23,24,31,32,43,44,50,51]', true, 'system_auditor', 'System Auditor', 'Can audit system activities and logs', 'audit', 1, 'AC');
---📁 8. user_roles.sql (Run LAST - depends on roles and users)
-
-
-TRUNCATE user_roles RESTART IDENTITY CASCADE;
-
--- =====================
--- TECHCORP INC (org_id: 1)
--- =====================
-INSERT INTO user_roles (user_id, role_key, org_id, created_by, status) VALUES
-(1, 'admin', 1, 1, 'AC'),        -- Sarah Admin - System Administrator
-(2, 'creator', 1, 1, 'AC'),      -- John Developer - Content Creator
-(3, 'manager', 1, 1, 'AC'),      -- Lisa Designer - Content Manager
-(4, 'viewer', 1, 1, 'AC');       -- Mike Tester - Content Viewer
-
--- =====================
--- EDULEARN ACADEMY (org_id: 2)
--- =====================
-INSERT INTO user_roles (user_id, role_key, org_id, created_by, status) VALUES
-(5, 'admin', 2, 5, 'AC'),        -- Dr. Emily Director - School Administrator
-(6, 'teacher', 2, 5, 'AC'),      -- Mark Teacher - Teacher
-(7, 'student', 2, 5, 'AC');      -- Alex Student - Student
-
--- =====================
--- HEALTHPLUS SYSTEMS (org_id: 3)
--- =====================
-INSERT INTO user_roles (user_id, role_key, org_id, created_by, status) VALUES
-(8, 'admin', 3, 8, 'AC'),        -- Dr. Sarah Admin - Clinic Administrator
-(9, 'practitioner', 3, 8, 'AC'), -- Dr. Mike Physician - Medical Practitioner
-(10, 'viewer', 3, 8, 'AC');      -- Nurse Lisa - Medical Viewer
+INSERT INTO user_roles (user_id, role_id, org_id, created_by, status) VALUES
+(8, 1, 3, 8, 'AC'),  -- Dr. Sarah Admin
+(9, 7, 3, 8, 'AC'),  -- Dr. Mike Physician
+(10, 4, 3, 8, 'AC'); -- Nurse Lisa

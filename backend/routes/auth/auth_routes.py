@@ -25,7 +25,7 @@ async def login(
         firebase_user = firebase_manager.verify_firebase_token(login_data.firebase_token)
         
         # Check if user exists in our database
-        user = db.execute_single(
+        user = await db.fetch_one(
             permission_query("GET_USER_BY_UID"),  # Using permission_query convenience function
             (firebase_user["uid"],)
         )
@@ -71,7 +71,7 @@ async def register(
     """Register a new user (explicit registration required)"""
     try:
         # Check if user already exists
-        existing_user = db.execute_single(
+        existing_user = await db.fetch_one(
             permission_query("GET_USER_BY_UID"),
             (user_data.uid,)
         )
@@ -83,7 +83,7 @@ async def register(
             )
         
         # Check if email already exists
-        existing_email = db.execute_single(
+        existing_email = await db.fetch_one(
             permission_query("GET_USER_BY_EMAIL"),
             (user_data.email,)
         )
@@ -107,7 +107,7 @@ async def register(
         )
         
         # Get created user
-        user = db.execute_single(
+        user = await db.fetch_one(
             permission_query("GET_USER_BY_ID"),
             (user_id,)
         )
@@ -186,7 +186,7 @@ async def update_current_user_info(
             )
         
         # Get updated user
-        updated_user = db.execute_single(
+        updated_user = await db.fetch_one(
             permission_query("GET_USER_BY_ID"),
             (current_user.id,)
         )

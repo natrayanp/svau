@@ -255,12 +255,20 @@ export function createEntityStore<T>(
         }
       }
 
-      // Sliding-window cache logic
-      const cacheVal = get(cache);
-      if (cacheVal[blockNum]) {
-        revisitBlock(blockNum, items);
+      // --- NEW: validate offset before caching ---
+      const responseOffset = response.offset ?? offset; // fallback if API doesn't return offset
+      if (responseOffset !== offset) {
+        console.warn(
+          `⚠️ API returned offset ${responseOffset}, but requested ${offset}. Skipping cache for block ${blockNum}.`
+        );
       } else {
-        addBlock(blockNum, items);
+        // Sliding-window cache logic
+        const cacheVal = get(cache);
+        if (cacheVal[blockNum]) {
+          revisitBlock(blockNum, items);
+        } else {
+          addBlock(blockNum, items);
+        }
       }
 
       // Update pagination total
@@ -274,7 +282,6 @@ export function createEntityStore<T>(
       loading.set(false);
     }
   }
-
 
 
   // Use existing fetchEntityBlock reference

@@ -93,13 +93,19 @@ def _make_async_body_iterator(resp_body: bytes) -> AsyncIterable[bytes]:
     return _iter()
 
 
+def make_json_response(status_code: int, content: dict, request_id: str, headers: dict = None):
+    response = JSONResponse(status_code=status_code, content=content, headers=headers)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
 # ---------------------------------------------------------
 # Global Middleware
 # ---------------------------------------------------------
 class GlobalResponseMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())
-        set_request_id(request_id)
+        frontend_request_id = request.headers.get("X-Request-ID")
+        request_id = frontend_request_id or str(uuid.uuid4())
+        set_request_id(request_id)        
         start = time.perf_counter()
 
         # pagination params (defaults)
@@ -169,18 +175,23 @@ class GlobalResponseMiddleware(BaseHTTPMiddleware):
             for h in ("content-length", "transfer-encoding", "content-encoding"):
                 headers.pop(h, None)
 
-            return JSONResponse(status_code=raw_response.status_code, content=wrapped, headers=headers)
+            return make_json_response(raw_response.status_code, wrapped, request_id)
 
         except ValidationError as e:
             duration_ms = round((time.perf_counter() - start) * 1000, 2)
-            err = ErrorResponse(
-                message="Validation Error",
-                error=ErrorDetail(code="validation_error", message=str(e), details=e.errors())
-            ).model_dump()
-            err["request_id"] = request_id
-            err["duration_ms"] = duration_ms
+            err = {
+                "success": False,
+                "message": "Validation Error",
+                "error": {
+                    "code": "validation_error",
+                    "message": str(e),
+                    "details": e.errors()
+                },
+                "request_id": request_id,
+                "duration_ms": duration_ms,
+            }
             logger.error(f"[{request_id}] ValidationError: {str(e)}")
-            return JSONResponse(status_code=422, content=err)
+            return make_json_response(422, err, request_id)
 
         except AppException as e:
             duration_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -192,7 +203,8 @@ class GlobalResponseMiddleware(BaseHTTPMiddleware):
                 "request_id": request_id,
                 "duration_ms": duration_ms,
             }
-            return JSONResponse(status_code=500, content=err)
+            return make_json_response(500, err, request_id)
+
 
         except Exception as ex:
             duration_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -208,4 +220,6 @@ class GlobalResponseMiddleware(BaseHTTPMiddleware):
                 "request_id": request_id,
                 "duration_ms": duration_ms,
             }
-            return JSONResponse(status_code=500, content=err)
+            return make_json_response(500, err, request_id)
+
+

@@ -22,10 +22,11 @@ CREATE TABLE users (
     email VARCHAR(255) NOT NULL,
     display_name VARCHAR(100),
     org_id INTEGER NOT NULL REFERENCES organizations(org_id) ON DELETE RESTRICT,
+    role_id INTEGER NOT NULL REFERENCES roles(role_id),
     email_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'IA',
+    status VARCHAR(20) DEFAULT 'IA',    
     UNIQUE(org_id, email),
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
@@ -90,23 +91,27 @@ CREATE TABLE permission_structures (
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
+
+create table role_permissions_legacy as select * from role_permissions
+create table roles_legacy as select * from roles
+
+
 CREATE TABLE role_permissions (
-    permission_id SERIAL PRIMARY KEY,
+    role_id INTEGER NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
     structure_id INTEGER NOT NULL REFERENCES permission_structures(permissstruct_id) ON DELETE CASCADE,
     granted_actions JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) DEFAULT 'IA',
-    UNIQUE (structure_id, granted_actions),
+    UNIQUE (role_id,structure_id),
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
 
 CREATE TABLE roles (
-    role_key VARCHAR(50) NOT NULL,
+    role_id SERIAL PRIMARY KEY,
     org_id INTEGER NOT NULL REFERENCES organizations(org_id) ON DELETE CASCADE,
     display_name VARCHAR(100) NOT NULL,
     description TEXT,
-    permission_ids JSONB NOT NULL DEFAULT '[]',
     is_template BOOLEAN DEFAULT FALSE,
     template_id VARCHAR(100),
     template_name VARCHAR(200),
@@ -119,7 +124,6 @@ CREATE TABLE roles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'IA',
-    PRIMARY KEY (role_key, org_id),
     CONSTRAINT template_check CHECK (
         (is_template = true AND template_id IS NOT NULL AND template_name IS NOT NULL)
         OR
@@ -131,18 +135,18 @@ CREATE TABLE roles (
 CREATE TABLE user_roles (
     userrole_id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    role_key VARCHAR(50) NOT NULL,
+    role_id INTEGER NOT NULL,
     org_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'IA',
-    UNIQUE(user_id, role_key),
-    FOREIGN KEY (role_key, org_id) REFERENCES roles(role_key, org_id) ON DELETE CASCADE,
+    UNIQUE(user_id, role_id, org_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
+
 
 
 CREATE TABLE TableVersion (
@@ -157,42 +161,29 @@ CREATE TABLE TableVersion (
 CREATE OR REPLACE FUNCTION bump_table_version_statement()
 RETURNS trigger AS $$
 BEGIN
-    FOR org_rec IN
-        SELECT DISTINCT org_id FROM new_rows
-    LOOP
-        INSERT INTO TableVersion (table_name, table_version, org_id)
-        VALUES (TG_TABLE_NAME, 1, org_rec.org_id)
-        ON CONFLICT (table_name, org_id)
-        DO UPDATE SET table_version = TableVersion.table_version + 1;
-    END LOOP;
+    INSERT INTO TableVersion (table_name, table_version, org_id)
+    SELECT TG_TABLE_NAME, 1, org_id
+    FROM new_rows
+    ON CONFLICT (table_name, org_id)
+    DO UPDATE SET table_version = TableVersion.table_version + 1;
 
-    RETURN NULL; -- statement-level triggers must return NULL
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
 
 --PL/pgSQL Script for Auto‑Generating Triggers
-DO $$
-DECLARE
-    tbl TEXT;
-    trigger_sql TEXT;
-    tables TEXT[] := ARRAY['users', 'projects', 'orders']; -- add more table names here
-BEGIN
-    FOREACH tbl IN ARRAY tables
-    LOOP
-        trigger_sql := format($f$
-            CREATE TRIGGER trg_%I_version
-            AFTER INSERT OR UPDATE ON %I
-            REFERENCING NEW TABLE AS new_rows
-            FOR EACH STATEMENT
-            EXECUTE FUNCTION bump_table_version_statement();
-        $f$, tbl, tbl);
+CREATE TRIGGER trg_users_version_insert
+AFTER INSERT ON users
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION bump_table_version_statement();
 
-        EXECUTE trigger_sql;
-    END LOOP;
-END;
-$$;
-
+CREATE TRIGGER trg_users_version_update
+AFTER UPDATE ON users
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION bump_table_version_statement();
 
 -- Optional: a convenience index to speed lookups
 CREATE INDEX idx_users_org_id ON users(org_id);

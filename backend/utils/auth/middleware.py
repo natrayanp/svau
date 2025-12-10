@@ -60,7 +60,7 @@ async def get_current_user(
 
         # Fetch user from database
         try:
-            user_data = db.fetch_one(
+            user_data = await db.fetch_one(
                 "SELECT id, uid, email, full_name, email_verified, created_at, organization_id, roles "
                 "FROM users WHERE id = %s",
                 (user_id,)

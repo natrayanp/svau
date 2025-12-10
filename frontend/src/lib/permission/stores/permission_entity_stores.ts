@@ -31,15 +31,15 @@ export const usersStore = createEntityStore<User>(
 export const rolesStore = createEntityStore<Role>(
   'roles',
   async (params) => permissionApi.getRoles(params),
-  (role) => role.role_key,
+  (role) => role.role_id,
   100,
   5000,
   {
-    searchable: ['role_key', 'description'],
+    searchable: ['role_id', 'description'],
     sortable: ['power_level', 'permission_count'],
     arrayFields: ['permissions', 'category_access'] 
   },
-  //permissionApi.createRole,
-  //permissionApi.updateRole
+  undefined, //permissionApi.createRole,
+  async (params) => permissionApi.updateRole(params),  //permissionApi.updateRole  
   // deleteFn omitted → deleteItem won’t exist
 );

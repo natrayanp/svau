@@ -219,13 +219,13 @@
   },
   "systemRoles": [
     {
-      "role_key": "admin",
+      "role_id": "admin",
       "display_name": "Administrator",
       "description": "Full system access with all permissions",
       "is_system_role": true,
       "permission_count": 9,
       "user_count": 3,
-      "organization_name": "System",
+      "org_id": "System",
       "permissions": [
         {
           "permissstruct_id": "mod_1",
@@ -269,7 +269,7 @@
       "updated_at": "2024-01-15T00:00:00Z"
     },
     {
-      "role_key": "user_manager",
+      "role_id": "user_manager",
       "display_name": "User Manager",
       "description": "Can manage users and roles",
       "is_system_role": true,
@@ -311,7 +311,7 @@
       "updated_at": "2024-01-15T00:00:00Z"
     },
     {
-      "role_key": "content_editor",
+      "role_id": "content_editor",
       "display_name": "Content Editor",
       "description": "Can create and edit content",
       "is_system_role": true,
@@ -341,7 +341,7 @@
       "updated_at": "2024-01-15T00:00:00Z"
     },
     {
-      "role_key": "viewer",
+      "role_id": "viewer",
       "display_name": "Viewer",
       "description": "Can view content only",
       "is_system_role": true,

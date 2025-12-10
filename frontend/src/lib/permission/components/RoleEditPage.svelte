@@ -31,6 +31,7 @@
   let saveMessage = '';
   let initialized = false;
   let permissionerror = false;
+  
 
   // Use control helpers
   const { addItem: addRoleMutation, updateItem: updateRoleMutation } = useMutations(rolesStore);
@@ -71,56 +72,51 @@
     }
   }
 
+
   async function loadRoleData(f = 'second') {
-    console.log('loadra');
     let role;
     try {
-      if (f === 'first'){
+      if (f === 'first') {
         role = roleId;
-        console.log('loadra - first');
       } else {
         role = await getRoleById(roleId!);
       }
-      console.log(role);
+
       if (!role) {
         saveMessage = '❌ Role not found';
         return;
       }
 
       const typedRole = role as Role;
-      console.log('loadra - after type');
-      console.log(roleId);
-      // Set role data from store
+
+      // Populate roleData
       roleData = {
         name: typedRole.display_name,
         description: typedRole.description,
-        //power_level: typedRole.power_level || 0, // Just use what's stored
         power_level: typedRole.power_level || PermissionUtils.getMaxPower(
-          typedRole.permissions || [], 
+          typedRole.permissions || [],
           $permissionStructureData
         ),
         users: typedRole.user_count || 0,
         permissions: typedRole.permissions || []
       };
-      
-      // Store original data for cancel functionality
-      originalRoleData = { ...roleData };
+
+      // Store original data for cancel/discard (deep copy)
+      originalRoleData = JSON.parse(JSON.stringify(roleData));
       initialized = true;
     } catch (err) {
       console.error('Failed to load role data:', err);
       saveMessage = '❌ Failed to load role data';
     }
-
-    console.log('loaded end');
   }
 
   async function saveRole() {
     if (mode === 'view') return;
-    
+
     saveLoading = true;
     saveMessage = '';
 
-    // Validation
+    // Validation for new role
     if (mode === 'new' && !roleData.name.trim()) {
       saveMessage = '❌ Role name is required';
       saveLoading = false;
@@ -129,52 +125,49 @@
 
     try {
       let result;
-      
+
       if (mode === 'new') {
         // Create new role
-        if (!addRoleMutation) {
-          throw new Error('Role creation not available');
-        }
-        
-        const newRoleData = {
-          role_key: roleData.name.toLowerCase().replace(/\s+/g, '_'),
+        if (!addRoleMutation) throw new Error('Role creation not available');
+
+        const newRoleData: Partial<Role> = {
+          role_id: roleData.name.toLowerCase().replace(/\s+/g, '_'),
           display_name: roleData.name,
           description: roleData.description,
           permissions: roleData.permissions,
           power_level: roleData.power_level,
           permission_count: roleData.permissions.length,
-          category_access: [], // Compute from permissions if needed
+          category_access: [],
           is_system_role: false
-        } as Partial<Role>;
-        
+        };
+
         result = await addRoleMutation(newRoleData);
         saveMessage = '✅ Role created successfully!';
-        
       } else {
         // Update existing role
-        if (!updateRoleMutation) {
-          throw new Error('Role update not available');
+        if (!updateRoleMutation) throw new Error('Role update not available');
+
+        // Compute only changed fields
+        const changedFields = diffData(originalRoleData, roleData);
+        if (Object.keys(changedFields).length === 0) {
+          saveMessage = 'ℹ️ No changes to save';
+          return;
         }
-        
-        const updateData = [{
-          permissions: roleData.permissions,
-          power_level: roleData.power_level,
-          permission_count: roleData.permissions.length
-        } as Partial<Role>];
-        
+
+        if (changedFields.permissions) {
+          changedFields.permission_count = changedFields.permissions.length;
+        }
+
+        const updateData: Partial<Role>[] = [changedFields];
         result = await updateRoleMutation([roleId!], updateData);
         saveMessage = '✅ Role updated successfully!';
       }
-      
-      // Navigate back after successful save
-      // Call parent callback or navigate back
+
+      // Call parent callback or fallback navigation
       if (onSave) {
-        setTimeout(() => onSave(), 500); // Call parent callback
+        setTimeout(() => onSave(), 500);
       } else {
-        // Fallback navigation if no callback
-        setTimeout(() => {
-          goto('/permission/roles');
-        }, 1500);
+        setTimeout(() => goto('/permission/roles'), 1500);
       }
     } catch (error) {
       console.error('Error saving role:', error);
@@ -217,6 +210,17 @@
       default:
         return 'Role Management';
     }
+  }
+
+  // Utility to compute changes between original and current role data
+  function diffData(original: any, current: any) {
+    const changed: any = {};
+    for (const key in current) {
+      if (JSON.stringify(current[key]) !== JSON.stringify(original[key])) {
+        changed[key] = current[key];
+      }
+    }
+    return changed;
   }
 
   function getPowerLevelColor(level: number) {
@@ -267,6 +271,20 @@ $: if ($permissionStructureData && roleData.permissions.length > 0) {
     $permissionStructureData
   );
 }
+
+$: hasChanges = originalRoleData
+  ? JSON.stringify({
+      name: roleData.name,
+      description: roleData.description,
+      permissions: roleData.permissions
+    }) !== JSON.stringify({
+      name: originalRoleData.name,
+      description: originalRoleData.description,
+      permissions: originalRoleData.permissions
+    })
+  : false;
+
+
 </script>
 
 <svelte:head>
@@ -506,27 +524,54 @@ $: if ($permissionStructureData && roleData.permissions.length > 0) {
         ← Back
       </button>
       {:else}
-      <button
-        on:click={saveRole}
-        disabled={saveLoading || (mode === 'new' && !roleData.name.trim())}
-        class="premium-primary-btn text-sm px-4 py-2 {saveLoading || (mode === 'new' && !roleData.name.trim()) ? 'opacity-50 cursor-not-allowed' : ''}"
-      >
-        {#if saveLoading}
-        <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-        <span>Saving...</span>
-        {:else}
-        <span class="text-lg">💾</span>
-        <span>{getActionButtonText()}</span>
-        {/if}
-      </button>
 
-      <button on:click={cancelEdit} class="premium-secondary-btn text-sm px-4 py-2">
-        {#if mode === 'new'}
-        Cancel
-        {:else}
-        Discard
-        {/if}
-      </button>
+        <button
+          on:click={saveRole}
+          disabled={saveLoading || !hasChanges || (mode === 'new' && !roleData.name.trim())}
+          class="premium-primary-btn text-sm px-4 py-2 {saveLoading || !hasChanges || (mode === 'new' && !roleData.name.trim()) ? 'opacity-50 cursor-not-allowed' : ''}"
+        >
+          {#if saveLoading}
+            <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+            <span>Saving...</span>
+          {:else}
+            <span class="text-lg">💾</span>
+            <span>
+              {#if mode === 'new'}
+                Create Role
+              {:else if mode === 'edit'}
+                {#if hasChanges}
+                  Save Changes
+                {:else}
+                  No Changes
+                {/if}
+              {/if}
+            </span>
+          {/if}
+        </button>
+
+
+        <button
+          on:click={cancelEdit}
+          class="premium-secondary-btn text-sm px-4 py-2"
+          disabled={saveLoading}
+        > <!-- prevent cancel during save -->
+          {#if mode === 'new'}
+            Cancel
+          {:else if mode === 'edit'}
+            {#if hasChanges}
+              Discard Changes
+            {:else}
+              Back
+            {/if}
+          {:else}
+            Back
+          {/if}
+        </button>
+
+
+
+
+
       {/if}
     </div>
   </div>

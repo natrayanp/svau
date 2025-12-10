@@ -37,11 +37,11 @@ class DatabasePermissionSystem:
         self._cache_structure(db, cache_key, structure)
         return structure
     
-    def _build_structure_from_db(self, db) -> Dict[str, Any]:
+    async def _build_structure_from_db(self, db) -> Dict[str, Any]:
         """Build permission structure - CONVERTS ALL IDs TO STRING FOR FRONTEND"""
         try:
             # ✅ USING QUERY MANAGER
-            modules_data = db.execute_query(
+            modules_data = await db.fetch_one(
                 permission_query("GET_PERMISSION_MODULES"),
                 fetch=True
             )
@@ -56,7 +56,7 @@ class DatabasePermissionSystem:
                 module_id_str = str(module['id'])
                 
                 # ✅ USING QUERY MANAGER
-                menus_data = db.execute_query(
+                menus_data = await db.fetch_one(
                     permission_query("GET_PERMISSION_MENUS"),
                     (module['id'],),  # DB uses int
                     fetch=True
@@ -67,7 +67,7 @@ class DatabasePermissionSystem:
                     menu_id_str = str(menu['id'])  # Convert to string
                     
                     # ✅ USING QUERY MANAGER
-                    cards_data = db.execute_query(
+                    cards_data = await db.fetch_one(
                         permission_query("GET_PERMISSION_CARDS"),
                         (menu['id'],),  # DB uses int
                         fetch=True
@@ -78,7 +78,7 @@ class DatabasePermissionSystem:
                         card_id_str = str(card['id'])  # Convert to string
                         
                         # ✅ USING QUERY MANAGER
-                        permissions_data = db.execute_query(
+                        permissions_data = await db.fetch_one(
                             permission_query("GET_CARD_PERMISSIONS"),
                             (card['id'],),  # DB uses int
                             fetch=True
@@ -114,7 +114,7 @@ class DatabasePermissionSystem:
                         total_cards += 1
                     
                     # ✅ USING QUERY MANAGER
-                    menu_permissions_data = db.execute_query(
+                    menu_permissions_data = await db.fetch_one(
                         permission_query("GET_MENU_PERMISSIONS"),
                         (menu['id'],),  # DB uses int
                         fetch=True
@@ -173,11 +173,11 @@ class DatabasePermissionSystem:
             print(f"Error building permission structure: {e}")
             raise
     
-    def _get_cached_structure(self, db, cache_key: str) -> Optional[Dict[str, Any]]:
+    async def _get_cached_structure(self, db, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get cached permission structure"""
         try:
             # ✅ USING QUERY MANAGER
-            cached = db.execute_single(
+            cached = await db.fetch_one(
                 permission_query("GET_CACHE"),
                 (cache_key,)
             )
@@ -220,13 +220,13 @@ class DatabasePermissionSystem:
         return [self._int_to_string_id(pid) for pid in permission_ids]
     
     # DATABASE METHODS WITH CONVERSION
-    def get_role_permissions_from_db(self, role_key: str, db) -> Set[str]:  # Returns string IDs
+    async def get_role_permissions_from_db(self, role_id: str, db) -> Set[str]:  # Returns string IDs
         """Get role permissions - returns string IDs for frontend"""
         try:
             # ✅ USING QUERY MANAGER
-            permissions = db.execute_query(
+            permissions = await db.fetch_one(
                 permission_query("GET_ROLE_PERMISSIONS"),
-                (role_key,),
+                (role_id,),
                 fetch=True
             )
             # Convert to string IDs for frontend
@@ -235,19 +235,19 @@ class DatabasePermissionSystem:
             print(f"Error getting role permissions: {e}")
             return set()
     
-    def save_role_permissions_to_db(self, role_key: str, permission_ids: List[str], granted_by: int, db) -> bool:
+    def save_role_permissions_to_db(self, role_id: str, permission_ids: List[str], granted_by: int, db) -> bool:
         """Save role permissions - accepts string IDs, converts to int for DB"""
         try:
             # Convert string IDs to int for database
             permission_ids_int = self._convert_string_ids_to_int(permission_ids)
             
-            db.execute_query("BEGIN")
+            db.fetch_one("BEGIN")
             
             # ✅ USING QUERY MANAGER
             # Clear existing permissions
             db.execute_update(
                 permission_query("DELETE_ROLE_PERMISSIONS"),
-                (role_key,)
+                (role_id,)
             )
             
             # Insert new permissions
@@ -255,30 +255,30 @@ class DatabasePermissionSystem:
                 # ✅ USING QUERY MANAGER
                 db.execute_insert(
                     permission_query("INSERT_ROLE_PERMISSION"),
-                    (role_key, perm_id, granted_by)
+                    (role_id, perm_id, granted_by)
                 )
             
             # ✅ USING QUERY MANAGER
             # Clear cache
             db.execute_update(
                 permission_query("DELETE_CACHE"),
-                (f'role_permissions_{role_key}%',)
+                (f'role_permissions_{role_id}%',)
             )
             
-            db.execute_query("COMMIT")
+            db.fetch_one("COMMIT")
             return True
             
         except Exception as e:
-            db.execute_query("ROLLBACK")
+            db.fetch_one("ROLLBACK")
             print(f"Failed to save role permissions: {e}")
             return False
         
-    def get_permission_details(self, permission_id: str, db) -> Optional[Dict[str, Any]]:
+    async def get_permission_details(self, permission_id: str, db) -> Optional[Dict[str, Any]]:
         """Get permission details - accepts string ID"""
         try:
             perm_id_int = self._string_to_int_id(permission_id)
             # ✅ USING QUERY MANAGER
-            permission = db.execute_single(
+            permission = await db.fetch_one(
                 permission_query("GET_PERMISSION_DETAILS"),
                 (perm_id_int,)
             )
@@ -301,12 +301,12 @@ class DatabasePermissionSystem:
             print(f"Error getting permission details: {e}")
         return None
 
-    def validate_permission_id(self, permission_id: str, db) -> bool:
+    async def validate_permission_id(self, permission_id: str, db) -> bool:
         """Validate permission ID - accepts string ID"""
         try:
             perm_id_int = self._string_to_int_id(permission_id)
             # ✅ USING QUERY MANAGER
-            permission = db.execute_single(
+            permission = await db.fetch_one(
                 permission_query("VALIDATE_PERMISSION"),
                 (perm_id_int,)
             )
@@ -331,19 +331,19 @@ class DatabasePermissionSystem:
         
         return max_power
 
-    def get_all_permissions_with_power(self, db, max_power: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def get_all_permissions_with_power(self, db, max_power: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all permissions - returns string IDs"""
         try:
             if max_power is not None:
                 # ✅ USING QUERY MANAGER
-                permissions = db.execute_query(
+                permissions = await db.fetch_one(
                     permission_query("GET_PERMISSIONS_BY_POWER"),
                     (max_power,),
                     fetch=True
                 )
             else:
                 # ✅ USING QUERY MANAGER
-                permissions = db.execute_query(
+                permissions = await db.fetch_one(
                     permission_query("GET_ALL_PERMISSIONS"),
                     fetch=True
                 )
@@ -377,11 +377,11 @@ class ExplicitPermissionSystem:
         """Ensure all permission IDs are strings"""
         return [self._ensure_string_id(pid) for pid in permission_ids]
     
-    def get_user_permission_ids(self, user_id: int, db) -> Set[str]:  # Returns string IDs
+    async def get_user_permission_ids(self, user_id: int, db) -> Set[str]:  # Returns string IDs
         """Get user's direct permission IDs - returns string IDs"""
         try:
             # ✅ USING QUERY MANAGER
-            permissions = db.execute_query(
+            permissions = await db.fetch_one(
                 permission_query("GET_USER_PERMISSIONS"),
                 (user_id,),
                 fetch=True
@@ -392,13 +392,13 @@ class ExplicitPermissionSystem:
             print(f"Error getting user permissions: {e}")
             return set()
 
-    def get_user_permission_ids_with_roles(self, user_id: int, db) -> Set[str]:  # Returns string IDs
+    async def get_user_permission_ids_with_roles(self, user_id: int, db) -> Set[str]:  # Returns string IDs
         """Get combined permission IDs - returns string IDs"""
         user_permissions = self.get_user_permission_ids(user_id, db)
         
         try:
             # ✅ USING QUERY MANAGER
-            user_data = db.execute_single(
+            user_data = await db.fetch_one(
                 permission_query("GET_USER_ROLE"),
                 (user_id,),
                 fetch=True
@@ -419,9 +419,9 @@ class ExplicitPermissionSystem:
         """Get permission structure from database"""
         return self.db_system.get_permission_structure_from_db(db)
     
-    def save_role_permissions(self, role_key: str, permission_ids: List[str], granted_by: int, db) -> bool:
+    def save_role_permissions(self, role_id: str, permission_ids: List[str], granted_by: int, db) -> bool:
         """Save role permissions to database - accepts string IDs"""
-        return self.db_system.save_role_permissions_to_db(role_key, permission_ids, granted_by, db)
+        return self.db_system.save_role_permissions_to_db(role_id, permission_ids, granted_by, db)
     
     def get_permission_details(self, permission_id: str, db) -> Optional[Dict[str, Any]]:
         """Get permission details by ID - accepts string ID"""
@@ -494,11 +494,11 @@ class ExplicitPermissionSystem:
         user_max_power = self.get_user_max_power(user_id, db)
         return user_max_power >= required_power
 
-    def get_default_permissions_for_new_module(self, db) -> List[str]:
+    async def get_default_permissions_for_new_module(self, db) -> List[str]:
         """Get default permissions for a new module (least powerful) - returns string IDs"""
         try:
             # ✅ USING QUERY MANAGER
-            permissions = db.execute_query(
+            permissions = await db.fetch_one(
                 permission_query("GET_DEFAULT_PERMISSIONS"),
                 fetch=True
             )
@@ -579,11 +579,11 @@ class ExplicitPermissionSystem:
 # Keep RolePermissions class for backward compatibility
 class RolePermissions:
     @staticmethod
-    def get_permission_ids_for_role(role: str, db) -> Set[str]:  # Returns string IDs
+    async def get_permission_ids_for_role(role: str, db) -> Set[str]:  # Returns string IDs
         """Role permissions as IDs with power levels - returns string IDs"""
         try:
             # ✅ USING QUERY MANAGER
-            permissions = db.execute_query(
+            permissions = await db.fetch_one(
                 permission_query("GET_ROLE_PERMISSIONS"),
                 (role,),
                 fetch=True
@@ -685,7 +685,7 @@ def require_permission_id(permission_id: int):
         db = Depends(get_db)
     ):
         perm_system = ExplicitPermissionSystem()
-        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.id, db)
+        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.user_id, db)
         
         # Convert permission_id to string for comparison
         permission_id_str = str(permission_id)
@@ -732,7 +732,7 @@ def require_any_permission(permission_ids: List[int]):
         db = Depends(get_db)
     ):
         perm_system = ExplicitPermissionSystem()
-        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.id, db)
+        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.user_id, db)
         
         for perm_id in permission_ids:
             # Convert to string for comparison
@@ -761,7 +761,7 @@ def require_all_permissions(permission_ids: List[int]):
         db = Depends(get_db)
     ):
         perm_system = ExplicitPermissionSystem()
-        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.id, db)
+        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user.userid, db)
         
         missing_permissions = []
         for perm_id in permission_ids:

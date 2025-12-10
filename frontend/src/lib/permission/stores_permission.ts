@@ -149,13 +149,13 @@ export const currentConflicts = derived(
 // ENHANCED: Get role by key from store
 export const getRoleByKey = (roleKey: string) => {
   const $systemRoles = get(systemRoles);
-  return $systemRoles.find(role => role.role_key === roleKey);
+  return $systemRoles.find(role => role.role_id === roleKey);
 };
 
 // ENHANCED: Get role by ID from store
 export const getRoleById = (roleId: string) => {
   const $systemRoles = get(systemRoles);
-  return $systemRoles.find(role => role.role_key === roleId);
+  return $systemRoles.find(role => role.role_id === roleId);
 };
 
 // ENHANCED: Get role permissions from store
@@ -207,7 +207,7 @@ function calculateRolePowerLevel(permissionIds: string[], permissionStructure: P
 function updateSystemRolePermissions(roleKey: string, newPermissions: string[]): void {
   systemRoles.update(roles => 
     roles.map(role => {
-      if (role.role_key === roleKey) {
+      if (role.role_id === roleKey) {
         const $permissionStructure = get(permissionStructure);
         return {
           ...role,
@@ -226,7 +226,7 @@ function updateSystemRolePermissions(roleKey: string, newPermissions: string[]):
 function updateRoleUserCount(roleKey: string, change: number): void {
   systemRoles.update(roles =>
     roles.map(role => {
-      if (role.role_key === roleKey) {
+      if (role.role_id === roleKey) {
         return {
           ...role,
           user_count: Math.max(0, (role.user_count || 0) + change)
@@ -436,7 +436,7 @@ export const permissionActions = {
       if (result.success) {
         // Add new role to store
         const newRole: SystemRole = {
-          role_key: roleData.name.toLowerCase().replace(/\s+/g, '_'),
+          role_id: roleData.name.toLowerCase().replace(/\s+/g, '_'),
           display_name: roleData.name,
           description: roleData.description,
           is_system_role: false,
@@ -613,7 +613,7 @@ export const permissionActions = {
   updateRoleInStore(roleKey: string, updates: Partial<SystemRole>) {
     systemRoles.update(roles => 
       roles.map(role => 
-        role.role_key === roleKey 
+        role.role_id === roleKey 
           ? { ...role, ...updates }
           : role
       )

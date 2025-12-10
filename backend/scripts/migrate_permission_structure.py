@@ -17,12 +17,12 @@ def migrate_permission_structure():
         print("Starting permission structure migration...")
         
         # Clear existing data (in correct order to handle foreign keys)
-        db.execute_query("TRUNCATE TABLE permission_cache CASCADE")
-        db.execute_query("TRUNCATE TABLE role_permissions CASCADE")
-        db.execute_query("TRUNCATE TABLE card_permissions CASCADE")
-        db.execute_query("TRUNCATE TABLE permission_cards CASCADE")
-        db.execute_query("TRUNCATE TABLE permission_menus CASCADE")
-        db.execute_query("TRUNCATE TABLE permission_modules CASCADE")
+        db.fetch_one("TRUNCATE TABLE permission_cache CASCADE")
+        db.fetch_one("TRUNCATE TABLE role_permissions CASCADE")
+        db.fetch_one("TRUNCATE TABLE card_permissions CASCADE")
+        db.fetch_one("TRUNCATE TABLE permission_cards CASCADE")
+        db.fetch_one("TRUNCATE TABLE permission_menus CASCADE")
+        db.fetch_one("TRUNCATE TABLE permission_modules CASCADE")
         
         print("Cleared existing permission data")
         
@@ -81,14 +81,14 @@ def migrate_permission_structure():
         for role, permission_ids in role_permission_mapping.items():
             for perm_id in permission_ids:
                 # Verify permission exists before inserting
-                permission_exists = db.execute_single(
+                permission_exists = await db.fetch_one(
                     "SELECT id FROM card_permissions WHERE id = %s",
                     (perm_id,)
                 )
                 
                 if permission_exists:
                     db.execute_insert(
-                        "INSERT INTO role_permissions (role_key, permission_id) VALUES (%s, %s)",
+                        "INSERT INTO role_permissions (role_id, permission_id) VALUES (%s, %s)",
                         (role, perm_id)
                     )
                 else:
@@ -100,11 +100,11 @@ def migrate_permission_structure():
         print("\nVerifying migration...")
         
         # Count records
-        modules_count = db.execute_single("SELECT COUNT(*) as count FROM permission_modules")['count']
-        menus_count = db.execute_single("SELECT COUNT(*) as count FROM permission_menus")['count']
-        cards_count = db.execute_single("SELECT COUNT(*) as count FROM permission_cards")['count']
-        permissions_count = db.execute_single("SELECT COUNT(*) as count FROM card_permissions")['count']
-        role_perms_count = db.execute_single("SELECT COUNT(*) as count FROM role_permissions")['count']
+        modules_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_modules")['count']
+        menus_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_menus")['count']
+        cards_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_cards")['count']
+        permissions_count = await db.fetch_one("SELECT COUNT(*) as count FROM card_permissions")['count']
+        role_perms_count = await db.fetch_one("SELECT COUNT(*) as count FROM role_permissions")['count']
         
         print(f"Migration completed successfully!")
         print(f"Modules: {modules_count}")

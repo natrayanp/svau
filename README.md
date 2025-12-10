@@ -63,4 +63,4 @@ docker rm $(docker ps -aq)
 docker system prune -a --volumes
 
 4- Remove all images
-docker rmi $(docker images -q)
+docker rmi $(docker images -aq)

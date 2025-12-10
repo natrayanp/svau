@@ -11,9 +11,9 @@ from models.auth_models import (
     PermissionValidationResponse, AllowedPermissionsResponse,
     PowerAnalysisResponse, RoleTemplate
 )
-from utils.auth.permissions import require_permission_id, CommonPermissionIds
-
-from models.permission_models import (PermissionStructure,UserModel,RoleModel)
+from utils.auth.permissions import require_permission_id, CommonPermissionIds, ExplicitPermissionSystem
+from utils.api.response_utils import error_response, success_response
+from models.permission_models import (PermissionStructure,UserModel,Role)
 
 from models.api_models import ApiResponse,PaginatedData
 from utils.appwide.errors import AppException
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/auth-api/permissions", tags=["permissions"])
 # --------------------------
 # PERMISSION STRUCTURE ENDPOINT
 # --------------------------
-@router.get("/structure", response_model=ApiResponse[PermissionStructure])
+@router.get("/structure", response_model=PermissionStructure)
 async def get_permission_structure(
     current_user: User = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db)
@@ -42,19 +42,20 @@ async def get_permission_structure(
     - Handles database and application errors consistently.
     """
     # Explicitly enforce permission for clarity
-    require_permission_id(CommonPermissionIds.ADMIN_ACCESS)(current_user)
+    #await require_permission_id(CommonPermissionIds.ADMIN_ACCESS)(current_user)
     
     try:
         # Replace with actual query or use your permission_query function        
         result = db.fetch_all(permission_query("PERMISSION_STRUCTURE_QUERY"))
-
-        if not result or 'permission_structure' not in result:
+        print (result)
+        #if not result or 'permission_structure' not in result:
+        if not result:
             raise AppException(
                 message="Permission structure not found",
                 code="PERMISSION_STRUCTURE_NOT_FOUND"
             )
-
-        return result['permission_structure']
+        print('retunring the result')
+        return result[0]["permission_structure"]
 
     except DatabaseError as e:
         logger.error(f"Database error fetching permission structure: {e.message}, query: {e.query}")
@@ -81,18 +82,16 @@ async def get_permission_structure(
 async def get_organization_users(
     current_user: User = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100)
 ):
     """
     Get active users for the current user's organization with their roles, paginated.
     """
-    offset = (page - 1) * page_size
-
     try:
-        users = db.fetch_all(
+        users = db.fetch_one(
             permission_query("ORGANIZATION_USERS_QUERY"),
-            (current_user.user_id, page_size, offset)
+             {"current_user_id": current_user.user_id,"offset": offset,"limit": limit}
         )
 
         if not users:
@@ -101,18 +100,7 @@ async def get_organization_users(
                 code="ORG_USERS_NOT_FOUND"
             )
 
-        total = users[0]["total_count"] if users else 0
-        items = [{k: v for k, v in user.items() if k != "total_count"} for user in users]
-
-        return PaginatedData(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-            total_pages=(total + page_size - 1) // page_size,
-            has_next=(offset + page_size) < total,
-            has_prev=offset > 0
-        )
+        return users['users_data']
 
     except DatabaseError as e:
         logger.error(f"Database error fetching organization users: {e.message}, query: {e.query}")
@@ -134,10 +122,12 @@ async def get_organization_users(
 # --------------------------
 # ORGANIZATION ROLES ENDPOINT
 # --------------------------
-@router.get("/roles", response_model=ApiResponse[List[RoleModel]])
+@router.get("/roles", response_model=PaginatedData[Role])
 async def get_organization_roles(
     current_user: User = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_db)
+    db: DatabaseManager = Depends(get_db),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100)
 ):
     """
     Get roles for the current user's organization with package filtering.
@@ -145,9 +135,9 @@ async def get_organization_roles(
     """
     try:
 
-        result = db.fetch_all(permission_query("ORGANIZATION_ROLES_QUERY"),
-            (current_user.id,),)
-
+        result = db.fetch_one(permission_query("ORGANIZATION_ROLES_QUERY"),
+            {"current_user_id": current_user.user_id,"offset": offset,"limit": limit})
+        print(result)
         if not result and result['roles_data']:
             raise AppException(
                 message="No roles found for your organization",
@@ -234,7 +224,7 @@ async def update_role_permissions(
         # Log the bulk permission update
         db.execute_insert(
             auth_query("LOG_PERMISSION_ACTION"),
-            (0, 0, f'ROLE_PERMISSIONS_UPDATE:{role_name}', current_user.id)
+            (0, 0, f'ROLE_PERMISSIONS_UPDATE:{role_name}', current_user.user_id)
         )
         
         return success_response(message=f"Role permissions updated successfully for {role_name}")
@@ -351,7 +341,7 @@ async def get_user_permissions(
 ):
     """Get user's permission IDs - returns string IDs"""
     try:
-        permissions = db.execute_query(
+        permissions = await db.fetch_all(
             auth_query("GET_USER_PERMISSION_IDS"),
             (user_id,),
             fetch=True
@@ -615,7 +605,7 @@ async def get_user_permissions_with_details(
 ):
     """Get user permissions with detailed information - returns string IDs"""
     try:
-        permissions = db.execute_query(
+        permissions = await db.fetch_all(
             auth_query("GET_USER_PERMISSIONS_WITH_DETAILS"),
             (user_id,),
             fetch=True
@@ -652,7 +642,7 @@ async def get_role_templates(
         # Determine which query to use
         if template_list is None:
             # Get ALL templates
-            result = db.execute_single(
+            result = await db.fetch_one(
                 permission_query("GET_ALL_ROLE_TEMPLATES"),
                 (current_user.id,),  # Pass current user ID for organization context
                 fetch=True
@@ -661,7 +651,7 @@ async def get_role_templates(
             
         elif len(template_list) == 1:
             # Get SINGLE template
-            result = db.execute_single(
+            result = await db.fetch_one(
                 permission_query("GET_SINGLE_ROLE_TEMPLATE"),
                 (current_user.id, template_list[0]),  # user_id + specific template
                 fetch=True
@@ -670,7 +660,7 @@ async def get_role_templates(
             
         else:
             # Get MULTIPLE templates
-            result = db.execute_single(
+            result = await db.fetch_one(
                 permission_query("GET_MULTIPLE_ROLE_TEMPLATES"),
                 (current_user.id, template_list),  # user_id + array of templates
                 fetch=True
@@ -699,7 +689,7 @@ async def get_role_template_by_key(
     """Get specific role template details by template key"""
     try:
         # Get template with organization context and package filtering
-        template_result = db.execute_single(
+        template_result = await db.fetch_one(
             permission_query("GET_SINGLE_ROLE_TEMPLATE"),
             (current_user.id, template_key),  # user_id + template_key
             fetch=True
@@ -709,7 +699,7 @@ async def get_role_template_by_key(
             return error_response(f"Template '{template_key}' not found or not accessible")
         
         # Get template usage statistics (optional)
-        usage_stats = db.execute_single(
+        usage_stats = await db.fetch_one(
             permission_query("GET_TEMPLATE_USAGE_STATS_BY_KEY"),
             (template_key,),
             fetch=True
@@ -757,7 +747,7 @@ async def get_system_power_analysis(
         }
         
         # Get user statistics
-        user_stats = db.execute_single(
+        user_stats = await db.fetch_one(
             "SELECT COUNT(*) as total_users, AVG(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))/86400) as avg_account_age FROM users",
             fetch=True
         )
@@ -800,7 +790,7 @@ async def health_check(db = Depends(get_db)):
     """System health check"""
     try:
         # Check database connectivity
-        db_status = db.execute_single("SELECT 1 as status", fetch=True) is not None
+        db_status = await db.fetch_one("SELECT 1 as status", fetch=True) is not None
         
         # Check core tables
         tables_to_check = ["users", "user_permissions", "permissions", "role_permissions"]
@@ -808,7 +798,7 @@ async def health_check(db = Depends(get_db)):
         
         for table in tables_to_check:
             try:
-                result = db.execute_single(f"SELECT COUNT(*) as count FROM {table}", fetch=True)
+                result = await db.fetch_one(f"SELECT COUNT(*) as count FROM {table}", fetch=True)
                 table_status[table] = result is not None
             except:
                 table_status[table] = False
@@ -816,9 +806,9 @@ async def health_check(db = Depends(get_db)):
         # Get system metrics
         metrics = {}
         try:
-            user_count = db.execute_single("SELECT COUNT(*) as count FROM users", fetch=True)
-            permission_count = db.execute_single("SELECT COUNT(*) as count FROM permissions", fetch=True)
-            role_count = db.execute_single("SELECT COUNT(DISTINCT role_key) as count FROM role_permissions", fetch=True)
+            user_count = await db.fetch_one("SELECT COUNT(*) as count FROM users", fetch=True)
+            permission_count = await db.fetch_one("SELECT COUNT(*) as count FROM permissions", fetch=True)
+            role_count = await db.fetch_one("SELECT COUNT(DISTINCT role_id) as count FROM role_permissions", fetch=True)
             
             metrics = {
                 "total_users": user_count["count"] if user_count else 0,
@@ -989,7 +979,7 @@ async def get_permission_audit_logs(
         
         base_query += " ORDER BY pa.performed_at DESC LIMIT 1000"
         
-        logs = db.execute_query(base_query, tuple(params), fetch=True)
+        logs = await db.fetch_all(base_query, tuple(params), fetch=True)
         
         # Format logs
         formatted_logs = []

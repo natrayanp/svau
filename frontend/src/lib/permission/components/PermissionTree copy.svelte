@@ -32,7 +32,6 @@
   // Reactive store extraction
   $: permissionData = $permissionStructureData;
   $: loading = $permissionStructureLoading;
-  $: updateTrigger = 0;
 
   // Update local selection when props change
   $: {
@@ -100,10 +99,9 @@
     // Update local state and notify parent
     //localSelectedPermissions = newPermissions;
     localSelectedPermissions = [...newPermissions];
-    updateTrigger++; 
 
     if (onPermissionsChange) {
-      onPermissionsChange([...newPermissions]);
+      onPermissionsChange(newPermissions);
     }
   }
 
@@ -182,7 +180,6 @@
   // ------------------------------
 
   function isModuleFullySelected(module: ModuleDetail): boolean {
-    updateTrigger;
     const allActionKeys = getAllActionKeysForStructure(module);
     const currentActions = getGrantedActions(module.id);
     return allActionKeys.length > 0 && 
@@ -349,7 +346,6 @@
     
     //localSelectedPermissions = newPermissions;
     localSelectedPermissions = [...newPermissions];
-    updateTrigger++; 
     if (onPermissionsChange) {
       onPermissionsChange(newPermissions);
     }
@@ -358,7 +354,6 @@
   function clearAllPermissions() {
     if (isViewMode) return;
     localSelectedPermissions = [];
-    updateTrigger++; 
     if (onPermissionsChange) {
       onPermissionsChange([]);
     }

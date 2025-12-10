@@ -18,7 +18,7 @@ from queries.query_manager import auth_query
 router = APIRouter(prefix="/auth-api/permissions", tags=["permissions"])
 
 # PERMISSION STRUCTURE ENDPOINTS
-@router.get("/structure", response_model=PermissionStructureAPIResponse)
+@router.get("/structures", response_model=PermissionStructureAPIResponse)
 async def get_permission_structure(
     current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS))
 ):
@@ -50,7 +50,7 @@ async def get_user_permissions(
     db = Depends(get_db)
 ):
     """Get user's permission IDs"""
-    permissions = db.execute_query(
+    permissions = await db.fetch_one(
         auth_query("GET_USER_PERMISSION_IDS"),
         (user_id,),
         fetch=True
@@ -200,7 +200,7 @@ async def get_user_permissions_with_details(
     db = Depends(get_db)
 ):
     """Get user permissions with detailed information"""
-    permissions = db.execute_query(
+    permissions = await db.fetch_one(
         auth_query("GET_USER_PERMISSIONS_WITH_DETAILS"),
         (user_id,),
         fetch=True

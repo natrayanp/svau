@@ -14,7 +14,7 @@
 
   function filterRoles() {
     if (!searchTerm.trim()) {
-      filteredRoles = $systemRoles.filter(role => role && role.role_key);
+      filteredRoles = $systemRoles.filter(role => role && role.role_id);
       return;
     }
 
@@ -22,7 +22,7 @@
     filteredRoles = $systemRoles.filter(
       role =>
         role &&
-        role.role_key &&
+        role.role_id &&
         (role.display_name?.toLowerCase().includes(term) ||
          role.description?.toLowerCase().includes(term))
     );
@@ -33,7 +33,7 @@
   }
 
   $: if ($systemRoles.length > 0 && filteredRoles.length === 0) {
-    filteredRoles = $systemRoles.filter(role => role && role.role_key);
+    filteredRoles = $systemRoles.filter(role => role && role.role_id);
   }
 </script>
 
@@ -103,8 +103,8 @@
 {:else}
   <!-- Roles Grid -->
   <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-    {#each filteredRoles as role (role.role_key)}
-      {#if role && role.role_key}
+    {#each filteredRoles as role (role.role_id)}
+      {#if role && role.role_id}
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
           <!-- Role Header -->
           <div class="flex items-center justify-between mb-4">
@@ -163,13 +163,13 @@
           <!-- Actions -->
           <div class="flex space-x-2">
             <a
-              href="/permission/roles/{role.role_key}"
+              href="/permission/roles/{role.role_id}"
               class="flex-1 bg-indigo-600 text-white hover:bg-indigo-700 py-2 px-3 rounded-lg text-sm font-medium text-center transition-colors duration-200"
             >
               Edit Permissions
             </a>
             <a
-              href="/permission/users?role={role.role_key}"
+              href="/permission/users?role={role.role_id}"
               class="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-3 rounded-lg text-sm font-medium text-center transition-colors duration-200"
             >
               Manage Users

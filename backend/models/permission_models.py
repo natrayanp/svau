@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -31,7 +31,7 @@ class CardDetail(BaseModel):
     description: str
     display_order: int
     menu_id: str
-    permissions: List[PermissionDetail]
+    #permissions: List[PermissionDetail]
     allowed_actions: Optional[List[ActionDetail]] = []  # From SQL query
 
 class MenuDetail(BaseModel):
@@ -41,7 +41,7 @@ class MenuDetail(BaseModel):
     description: str
     display_order: int
     module_id: str
-    permissions: List[PermissionDetail]
+    #permissions: List[PermissionDetail]
     cards: List[CardDetail]
     allowed_actions: Optional[List[ActionDetail]] = []  # From SQL query
 
@@ -79,17 +79,19 @@ class UserPermissionsResponse(BaseModel):
     user_id: int
     permission_ids: List[str]  # ← Change from List[int] to List[str]
 
-class RolePermissionsResponse(BaseModel):
+'''class RolePermissionsResponse(BaseModel):
     role: str
     permission_ids: List[str]  # ← Change from List[int] to List[str]
     permission_count: int
+
+
 
 class RolePermissionsUpdateRequest(BaseModel):
     permission_ids: List[str]  # ← Change from List[int] to List[str]
 
 class UserPermissionsRequest(BaseModel):
     permission_ids: List[str]  # ← Change from List[int] to List[str]
-
+'''
 class PermissionValidationRequest(BaseModel):
     parent_permission_ids: List[str]  # ← Change from List[int] to List[str]
     child_permission_ids: List[str]   # ← Change from List[int] to List[str]
@@ -108,9 +110,12 @@ class RoleTemplate(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class PermissionItem(BaseModel):
+    permissstruct_id: int = Field(..., description="Permission structure identifier")
+    granted_action_key: List[str] = Field(..., description="List of granted actions")
 
-class RoleDetail(BaseModel):
-    role_key: str
+class Role(BaseModel):
+    role_id: str
     display_name: str
     description: Optional[str] = None
     is_system_role: bool
@@ -118,7 +123,7 @@ class RoleDetail(BaseModel):
     template_id: Optional[str] = None
     template_name: Optional[str] = None
     permission_count: int
-    permission_ids: List[int]   # IDs of granted permissions
+    permission_ids: List[PermissionItem]   # IDs of granted permissions
     user_count: int
     created_at: datetime
 
@@ -135,7 +140,7 @@ class RolesSummary(BaseModel):
     package_restrictions_applied: bool
 
 class RoleModel(BaseModel):
-    roles: List[RoleDetail]
+    roles: List[Role]
     summary: RolesSummary
 
 
