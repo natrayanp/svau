@@ -15,7 +15,7 @@ from utils.auth.permissions import require_permission_id, CommonPermissionIds, E
 from utils.api.response_utils import error_response, success_response
 from models.permission_models import (PermissionStructure,UserModel,Role)
 
-from models.api_models import ApiResponse,PaginatedData
+from models.api_models import ApiResponse,PaginatedData,PaginatedDataResponse
 from utils.appwide.errors import AppException
 import logging
 from utils.database.query_manager import permission_query
@@ -73,12 +73,11 @@ async def get_permission_structure(
         )
 
 
-# --------------------------
-# ORGANIZATION USERS ENDPOINT
-# --------------------------
-#@router.get("/users", response_model=ApiResponse[List[UserModel]])
+# ----------------------------------------------------
+# USER ENDPOINTS -- START
+# ----------------------------------------------------
 
-@router.get("/users", response_model=PaginatedData[UserModel])
+@router.get("/users", response_model=PaginatedDataResponse[UserModel])
 async def get_organization_users(
     current_user: User = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
@@ -89,27 +88,27 @@ async def get_organization_users(
     Get active users for the current user's organization with their roles, paginated.
     """
     try:
-        users = db.fetch_one(
-            permission_query("ORGANIZATION_USERS_QUERY"),
-             {"current_user_id": current_user.user_id,"offset": offset,"limit": limit}
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        result = user_service.get_organization_users(
+            current_user_id=current_user.user_id,
+            offset=offset,
+            limit=limit
         )
+        
+        return result
+        
 
-        if not users:
-            raise AppException(
-                message="No users found for your organization",
-                code="ORG_USERS_NOT_FOUND"
-            )
-
-        return users['users_data']
-
+        
+    except AppException as e:
+        raise
     except DatabaseError as e:
         logger.error(f"Database error fetching organization users: {e.message}, query: {e.query}")
         raise AppException(
             message="Could not load organization users",
             code="DB_ORG_USERS_ERROR"
         )
-    except AppException:
-        raise
     except Exception as e:
         logger.exception(f"Unexpected error in get_organization_users: {e}")
         raise AppException(
@@ -118,11 +117,377 @@ async def get_organization_users(
         )
 
 
+@router.post("/users/create", response_model=PaginatedDataResponse[UserModel])
+async def bulk_create_users(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
+):
+    """
+    Create multiple users in an all-or-nothing transaction.
+    
+    Request body:
+    {
+        "data": [
+            {
+                "email": "user1@example.com",
+                "display_name": "User One",
+                "roles": ["1", "2"],
+                "department": "Engineering",
+                "location": "SF",
+                "status": "AC",
+                "status_effective_from": "2024-01-01T00:00:00.000Z"
+            },
+            {
+                "email": "user2@example.com",
+                "display_name": "User Two",
+                "roles": ["3"]
+            }
+        ],
+        "offset": 0,
+        "limit": 20
+    }
+    """
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        # Get user's organization
+        org_id, _ = user_service.get_user_organization(current_user.user_id)
 
-# --------------------------
-# ORGANIZATION ROLES ENDPOINT
-# --------------------------
-@router.get("/roles", response_model=PaginatedData[Role])
+        # Get parameters
+        users_data = request_body.get("data", [])
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
+
+        # Validate offset and limit
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not users_data:
+            raise AppException(
+                message="No users provided for creation",
+                code="NO_USERS_PROVIDED"
+            )
+
+        # Execute bulk create (all-or-nothing)
+        operation_result = user_service.bulk_create_users(
+            org_id=org_id,
+            users_data=users_data,
+            created_by=current_user.user_id
+        )
+        
+        # Get updated users list
+        updated_users = user_service.get_organization_users(
+            current_user_id=current_user.user_id,
+            offset=offset,
+            limit=limit
+        )
+
+        # Add operation summary to response
+        response_data = updated_users["data"]
+        response_data["operation_metadata"] = operation_result
+        
+        return {
+            "data": response_data,
+            "operation_metadata": operation_result
+        }
+                
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk create failed: {e.message}")
+        raise
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk user creation: {e}")
+        raise AppException(
+            message="Failed to create users in bulk",
+            code="BULK_USER_CREATE_ERROR"
+        )
+
+
+@router.put("/users/update", response_model=PaginatedDataResponse[UserModel])
+async def bulk_update_users(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
+):
+    """
+    Bulk update multiple users with roles and additional fields.
+    
+    Request body:
+    {
+        "data": [
+            {
+                "user_id": 123,
+                "roles": ["1", "2", "3"],
+                "department": "Engineering",
+                "location": "San Francisco",
+                "status": "AC",
+                "status_effective_from": "2024-01-15T00:00:00.000Z"
+            },
+            {
+                "user_id": 124,
+                "roles": ["1", "2"]
+            }
+        ],
+        "offset": 0,
+        "limit": 20
+    }
+    """
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        # Get user's organization
+        org_id, _ = user_service.get_user_organization(current_user.user_id)
+
+        # Get parameters
+        users_data = request_body.get("data", [])
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
+
+        print(users_data)
+        
+        # Validate offset and limit
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not users_data:
+            raise AppException(
+                message="No users provided for update",
+                code="NO_USERS_PROVIDED"
+            )
+
+        # Execute bulk update (all-or-nothing)
+        operation_result = user_service.bulk_update_users(
+            org_id=org_id,
+            users_data=users_data,
+            updated_by=current_user.user_id
+        )
+        
+        # Get updated users list
+        updated_users = user_service.get_organization_users(
+            current_user_id=current_user.user_id,
+            offset=offset,
+            limit=limit
+        )
+
+        # Add operation summary to response
+        response_data = updated_users["data"]
+        response_data["operation_metadata"] = operation_result
+        
+        return {
+            "data": response_data,
+            "operation_metadata": operation_result
+        }
+                
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk update failed: {e.message}")
+        raise
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk user update: {e}")
+        raise AppException(
+            message="Failed to update users in bulk",
+            code="BULK_USER_UPDATE_ERROR"
+        )
+
+
+@router.delete("/users/delete", response_model=PaginatedDataResponse[UserModel])
+async def bulk_delete_users(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
+):
+    """
+    Delete multiple users in an all-or-nothing transaction.
+    
+    Request body:
+    {
+        "user_ids": [123, 124, 125],
+        "hard_delete": false,
+        "offset": 0,
+        "limit": 20
+    }
+    """
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        # Get user's organization
+        org_id, _ = user_service.get_user_organization(current_user.user_id)
+
+        # Get parameters
+        user_ids = request_body.get("user_ids", [])
+        hard_delete = request_body.get("hard_delete", False)
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
+
+        # Validate offset and limit
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not user_ids:
+            raise AppException(
+                message="No user IDs provided for deletion",
+                code="NO_USER_IDS_PROVIDED"
+            )
+
+        # Validate user IDs
+        validated_user_ids = []
+        for i, user_id in enumerate(user_ids):
+            try:
+                user_id_int = int(user_id)
+                validated_user_ids.append(user_id_int)
+            except (ValueError, TypeError):
+                raise AppException(
+                    message=f"Invalid user ID '{user_id}' at index {i}",
+                    code="INVALID_USER_ID"
+                )
+
+        # Execute bulk delete (all-or-nothing)
+        operation_result = user_service.bulk_delete_users(
+            org_id=org_id,
+            user_ids=validated_user_ids,
+            deleted_by=current_user.user_id,
+            hard_delete=hard_delete
+        )
+        
+        # Get updated users list
+        updated_users = user_service.get_organization_users(
+            current_user_id=current_user.user_id,
+            offset=offset,
+            limit=limit
+        )
+
+        # Add operation summary to response
+        response_data = updated_users["data"]
+        response_data["operation_metadata"] = operation_result
+        
+        return {
+            "data": response_data,
+            "operation_metadata": operation_result
+        }
+                
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk delete failed: {e.message}")
+        raise
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk user deletion: {e}")
+        raise AppException(
+            message="Failed to delete users in bulk",
+            code="BULK_USER_DELETE_ERROR"
+        )
+
+
+@router.get("/users/{user_id}/details")
+async def get_user_details(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db)
+):
+    """Get detailed information for a specific user."""
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        result = user_service.get_user_details(
+            user_id=user_id,
+            requesting_user_id=current_user.user_id
+        )
+        
+        return result
+        
+    except AppException as e:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error getting user details: {e}")
+        raise AppException(
+            message="Failed to get user details",
+            code="USER_DETAILS_ERROR"
+        )
+
+
+@router.get("/users/{user_id}/power-analysis")
+async def get_user_power_analysis(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db)
+):
+    """Get power analysis for a user based on assigned roles."""
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        result = user_service.get_user_power_analysis(
+            user_id=user_id,
+            requesting_user_id=current_user.user_id
+        )
+        
+        return result
+        
+    except AppException as e:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in power analysis: {e}")
+        raise AppException(
+            message="Failed to analyze user power",
+            code="POWER_ANALYSIS_ERROR"
+        )
+
+
+@router.get("/users/search")
+async def search_users(
+    search: str = Query(..., min_length=1, description="Search term for name, email, or UID"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db)
+):
+    """Search users within the organization."""
+    try:
+        from routes.auth.services.user_service import UserService
+        user_service = UserService(db)
+        
+        # Get user's organization
+        org_id, _ = user_service.get_user_organization(current_user.user_id)
+        
+        result = user_service.search_users(
+            org_id=org_id,
+            search_term=search,
+            offset=offset,
+            limit=limit
+        )
+        
+        return result
+        
+    except AppException as e:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error searching users: {e}")
+        raise AppException(
+            message="Failed to search users",
+            code="USER_SEARCH_ERROR"
+        )
+
+# ----------------------------------------------------
+# USER ENDPOINTS -- END
+# ----------------------------------------------------
+
+# ----------------------------------------------------
+# ORGANIZATION ROLES ENDPOINT -- START
+# ----------------------------------------------------
+@router.get("/roles", response_model=PaginatedDataResponse[Role])
 async def get_organization_roles(
     current_user: User = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
@@ -131,21 +496,28 @@ async def get_organization_roles(
 ):
     """
     Get roles for the current user's organization with package filtering.
-    Follows structured error handling like /structure and /users.
     """
     try:
-
-        result = db.fetch_one(permission_query("ORGANIZATION_ROLES_QUERY"),
-            {"current_user_id": current_user.user_id,"offset": offset,"limit": limit})
-        print(result)
-        if not result and result['roles_data']:
+        from routes.auth.services.role_service import RoleService
+        role_service = RoleService(db)
+         
+        # Get user's organization
+        role_data = role_service.get_role_for_organisation(current_user.user_id, offset, limit)
+    
+        # FIX: Corrected condition (was 'and', should be 'or')
+        if not role_data or 'roles_data' not in role_data:
             raise AppException(
                 message="No roles found for your organization",
                 code="ORG_ROLES_NOT_FOUND"
             )
 
-        return result['roles_data']
-
+        paginated_roles = role_data['roles_data']
+        #paginated_roles["operation_metadata"] = {"success": True, "entity": "roles", "operation": "get", "message": "Roles fetched successfully", "count": len(paginated_roles), "ids": 1}
+        #print("paginated_roles", paginated_roles)
+        result = {"data":paginated_roles, "operation_metadata": {"success": True, "entity": "roles", "operation": "get", "message": "Roles fetched successfully", "count": len(paginated_roles), "ids": ['1']}}
+        
+        return result
+       
     except DatabaseError as e:
         logger.error(f"Database error fetching organization roles: {e.message}, query: {e.query}")
         raise AppException(
@@ -162,345 +534,339 @@ async def get_organization_roles(
         )
 
 
-# ============ ROLE PERMISSION MANAGEMENT ============
-@router.get("/roles/{role_name}")
-async def get_role_permissions(
-    role_name: str,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
+@router.put("/roles/update", response_model=PaginatedDataResponse[Role])
+async def update_organization_roles(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
 ):
-    """Get permissions assigned to a specific role - returns string IDs"""
+    """
+    Update multiple roles.
+    
+    Request body:
+    {
+        "roles": [
+            {
+                "role_id": 123,
+                "display_name": "Updated Name",
+                "permissions": [...]
+            },
+            {
+                "role_id": 124,
+                "description": "Updated Description"
+            }
+        ],
+        "offset": 0,
+        "limit": 20
+    }
+    """
     try:
-        if role_name not in ["basic", "creator", "moderator", "admin"]:
-            return error_response("Invalid role name")
+        from routes.auth.services.role_service import RoleService
+        role_service = RoleService(db)
         
-        perm_system = ExplicitPermissionSystem()
-        role_permission_ids = perm_system.db_system.get_role_permissions_from_db(role_name, db)
-        
-        response_data = RolePermissionsResponse(
-            role=role_name,
-            permission_ids=list(role_permission_ids),  # Already string IDs
-            permission_count=len(role_permission_ids)
-        )
-        
-        return success_response(response_data.dict(), f"Role permissions for {role_name} loaded")
-    except Exception as e:
-        return error_response(f"Failed to get role permissions: {str(e)}")
+        # Get user's organization
+        org_id, _ = role_service.get_user_organization(current_user.user_id)
 
-@router.put("/roles/{role_name}/permissions")
-async def update_role_permissions(
-    role_name: str,
-    permission_data: RolePermissionsUpdateRequest,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
-    db = Depends(get_db)
-):
-    """Update permissions for a specific role - accepts string IDs"""
-    try:
-        if role_name not in ["basic", "creator", "moderator", "admin"]:
-            return error_response("Invalid role name")
-        
-        perm_system = ExplicitPermissionSystem()
-        
-        # Validate permission IDs exist (accepts string IDs)
-        invalid_permissions = []
-        for perm_id in permission_data.permission_ids:
-            if not perm_system.validate_permission_id(perm_id, db):
-                invalid_permissions.append(perm_id)
-        
-        if invalid_permissions:
-            return error_response(f"Invalid permission IDs: {invalid_permissions}")
-        
-        # Save to database (handles string to int conversion internally)
-        success = perm_system.save_role_permissions(
-            role_name, 
-            permission_data.permission_ids,  # String IDs
-            current_user.id, 
-            db
-        )
-        
-        if not success:
-            return error_response("Failed to save role permissions")
-        
-        # Log the bulk permission update
-        db.execute_insert(
-            auth_query("LOG_PERMISSION_ACTION"),
-            (0, 0, f'ROLE_PERMISSIONS_UPDATE:{role_name}', current_user.user_id)
-        )
-        
-        return success_response(message=f"Role permissions updated successfully for {role_name}")
-        
-    except Exception as e:
-        return error_response(f"Failed to update role permissions: {str(e)}")
+        # Get parameters
+        roles_data = request_body.get("data", [])
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
 
-# ============ POWER ANALYSIS ENDPOINTS ============
-@router.get("/roles/{role_name}/analysis")
-async def get_role_power_analysis(
-    role_name: str,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
+        # Validate offset and limit (match your other endpoints)
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not roles_data:
+            raise AppException(
+                message="No roles provided for update",
+                code="NO_ROLES_PROVIDED"
+            )
+
+        # Execute bulk update (all-or-nothing)
+        operation_result = role_service.bulk_update_roles(
+            org_id=org_id,
+            roles_data=roles_data,
+            updated_by=current_user.user_id
+        )
+        
+        # Get user's organization
+        role_data = role_service.get_role_for_organisation(current_user.user_id, offset, limit)
+    
+        # FIX: Corrected condition (was 'and', should be 'or')
+        if not role_data or 'roles_data' not in role_data:
+            raise AppException(
+                message="No roles found for your organization",
+                code="ORG_ROLES_NOT_FOUND"
+            )
+
+        paginated_roles = role_data['roles_data']
+        #paginated_roles["operation_metadata"] = {"success": True, "entity": "roles", "operation": "get", "message": "Roles fetched successfully", "count": len(paginated_roles), "ids": 1}
+        #print("paginated_roles", paginated_roles)
+        result = {"data":paginated_roles, "operation_metadata": operation_result}
+        
+        return result
+                
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk update failed: {e.message}")
+        raise
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk role update: {e}")
+        raise AppException(
+            message="Failed to update roles in bulk",
+            code="BULK_ROLE_UPDATE_ERROR"
+        )
+
+@router.post("/roles/create", response_model=PaginatedData[Role])
+async def bulk_create_organization_roles(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
 ):
-    """Get power analysis for a role from database - uses string IDs"""
+    """
+    Create multiple roles in an all-or-nothing transaction.
+    
+    Request body:
+    {
+        "roles": [
+            {
+                "display_name": "New Role 1",
+                "description": "Role description 1",
+                "permissions": [
+                    {
+                        "permissstruct_id": "456",
+                        "granted_action_key": ["read", "write"]
+                    }
+                ]
+            },
+            {
+                "display_name": "New Role 2",
+                "description": "Role description 2"
+            }
+        ],
+        "offset": 0,      # optional, defaults to 0
+        "limit": 20       # optional, defaults to 20
+    }
+    
+    Behavior:
+    - All creations succeed → returns paginated role data (including new roles)
+    - Any creation fails → entire transaction rolls back, returns error
+    """
     try:
-        if role_name not in ["basic", "creator", "moderator", "admin"]:
-            return error_response("Invalid role name")
+        from routes.auth.services.role_service import RoleService
+        role_service = RoleService(db)
         
-        perm_system = ExplicitPermissionSystem()
-        role_permissions = perm_system.db_system.get_role_permissions_from_db(role_name, db)  # String IDs
+        # Get user's organization
+        org_id, _ = role_service.get_user_organization(current_user.user_id)
         
-        permission_details = []
-        total_power = 0
-        max_power = 0
+        # Get parameters with validation
+        roles_data = request_body.get("roles", [])
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
         
-        for perm_id in role_permissions:
-            perm_details = perm_system.db_system.get_permission_details(perm_id, db)  # String ID
-            if perm_details:
-                permission_details.append(perm_details)
-                total_power += perm_details["power_level"]
-                max_power = max(max_power, perm_details["power_level"])
+        # Validate offset and limit
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not roles_data:
+            raise AppException(
+                message="No roles provided for creation",
+                code="NO_ROLES_PROVIDED"
+            )
         
-        avg_power = total_power / len(permission_details) if permission_details else 0
+        # Validate required fields before transaction
+        for i, role_data in enumerate(roles_data):
+            display_name = role_data.get("display_name")
+            if not display_name or not display_name.strip():
+                raise AppException(
+                    message=f"Missing or empty display_name at index {i}",
+                    code="MISSING_DISPLAY_NAME"
+                )
+            
+            # Check for duplicate names in the request
+            display_name_clean = display_name.strip()
+            duplicate_check = [r.get("display_name", "").strip() == display_name_clean 
+                             for r in roles_data[:i]]
+            if any(duplicate_check):
+                raise AppException(
+                    message=f"Duplicate role name '{display_name_clean}' in request",
+                    code="DUPLICATE_ROLE_NAME"
+                )
+
+        # Execute bulk create (all-or-nothing)
+        operation_result = role_service.bulk_create_roles(
+            org_id=org_id,
+            roles_data=roles_data,
+            created_by=current_user.user_id
+        )
         
-        # Power distribution
-        power_distribution = {
-            "low": len([p for p in permission_details if p["power_level"] <= 30]),
-            "medium": len([p for p in permission_details if 31 <= p["power_level"] <= 60]),
-            "high": len([p for p in permission_details if 61 <= p["power_level"] <= 80]),
-            "critical": len([p for p in permission_details if p["power_level"] > 80])
+        # Log successful operation
+        logger.info(
+            f"User {current_user.user_id} bulk created {operation_result['created_count']} roles. "
+            f"Created IDs: {operation_result['created_ids']}"
+        )
+        
+        # Get paginated data after successful creation
+        paginated_result = db.fetch_one(
+            permission_query("ORGANIZATION_ROLES_QUERY"),
+            {
+                "current_user_id": current_user.user_id,
+                "offset": offset,
+                "limit": limit
+            }
+        )
+
+        if not paginated_result or 'roles_data' not in paginated_result:
+            # This shouldn't happen if create succeeded, but handle gracefully
+            raise AppException(
+                message="Failed to fetch roles data after creation",
+                code="ROLES_FETCH_ERROR"
+            )
+        
+        # Add operation summary to response
+        roles_response = paginated_result['roles_data']
+        """roles_response['operation_metadata'] = {
+            "operation": "create_roles",
+            "count": len(roles_data),
+            "ids": [role['role_id'] for role in roles_data],
+        }"""
+
+        return {
+            "data": roles_response,
+            "operation_metadata": operation_result            
         }
-        
-        analysis_data = {
-            "role": role_name,
-            "permission_count": len(permission_details),
-            "max_power": max_power,
-            "average_power": round(avg_power, 2),
-            "power_distribution": power_distribution,
-            "most_powerful_permissions": [
-                p for p in permission_details if p["power_level"] == max_power
-            ],
-            "analyzed_at": datetime.utcnow().isoformat()
-        }
-        
-        return success_response(analysis_data, f"Power analysis for {role_name} completed")
-    except Exception as e:
-        return error_response(f"Failed to analyze role permissions: {str(e)}")
 
-@router.get("/user/{user_id}/power-analysis")
-async def get_user_power_analysis(
-    user_id: int,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
-):
-    """Get power analysis for a user - uses string IDs"""
-    try:
-        perm_system = ExplicitPermissionSystem()
-        user_permission_ids = perm_system.get_user_permission_ids_with_roles(user_id, db)  # String IDs
         
-        permission_details = []
-        total_power = 0
-        max_power = 0
-        
-        for perm_id in user_permission_ids:
-            perm_details = perm_system.get_permission_details(perm_id, db)  # String ID
-            if perm_details:
-                permission_details.append(perm_details)
-                total_power += perm_details["power_level"]
-                max_power = max(max_power, perm_details["power_level"])
-        
-        avg_power = total_power / len(permission_details) if permission_details else 0
-        
-        # Power distribution
-        power_distribution = {
-            "low": len([p for p in permission_details if p["power_level"] <= 30]),
-            "medium": len([p for p in permission_details if 31 <= p["power_level"] <= 60]),
-            "high": len([p for p in permission_details if 61 <= p["power_level"] <= 80]),
-            "critical": len([p for p in permission_details if p["power_level"] > 80])
-        }
-        
-        analysis_data = {
-            "user_id": user_id,
-            "permission_count": len(permission_details),
-            "max_power": max_power,
-            "average_power": round(avg_power, 2),
-            "power_distribution": power_distribution,
-            "most_powerful_permissions": [
-                p for p in permission_details if p["power_level"] == max_power
-            ],
-            "analyzed_at": datetime.utcnow().isoformat()
-        }
-        
-        return success_response(analysis_data, f"Power analysis for user {user_id} completed")
-    except Exception as e:
-        return error_response(f"Failed to analyze user permissions: {str(e)}")
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk create failed for user {current_user.user_id}: {e.message}")
+        raise
 
-# ============ USER PERMISSION MANAGEMENT ============
-@router.get("/user/{user_id}")
-async def get_user_permissions(
-    user_id: int,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
-):
-    """Get user's permission IDs - returns string IDs"""
-    try:
-        permissions = await db.fetch_all(
-            auth_query("GET_USER_PERMISSION_IDS"),
-            (user_id,),
-            fetch=True
+    except Exception as e:
+        logger.exception(f"Unexpected error in bulk role creation for user {current_user.user_id}: {e}")
+        raise AppException(
+            message="Failed to create roles in bulk",
+            code="BULK_ROLE_CREATE_ERROR"
         )
-        
-        # Convert to string IDs for frontend
-        permission_ids = [str(row['permission_id']) for row in permissions]
-        response_data = UserPermissionsResponse(
-            user_id=user_id,  # Keep internal ID as int
-            permission_ids=permission_ids  # String IDs for frontend
-        )
-        
-        return success_response(response_data.dict(), f"User permissions loaded for user {user_id}")
-    except Exception as e:
-        return error_response(f"Failed to get user permissions: {str(e)}")
 
-@router.post("/user/{user_id}")
-async def grant_permissions(
-    user_id: int,
-    permission_data: UserPermissionsRequest,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_MANAGE)),
-    db = Depends(get_db)
+
+@router.delete("/roles/delete", response_model=PaginatedData[Role])
+async def bulk_delete_organization_roles(
+    request_body: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: DatabaseManager = Depends(get_db),
 ):
-    """Grant permissions to user by IDs - accepts string IDs"""
+    """
+    Delete multiple roles in an all-or-nothing transaction.
+    
+    Request body:
+    {
+        "role_ids": [123, 124, 125],
+        "hard_delete": false,  # optional, default false (soft delete)
+        "offset": 0,           # optional, defaults to 0
+        "limit": 20            # optional, defaults to 20
+    }
+    
+    Behavior:
+    - All deletions succeed → returns paginated role data (without deleted roles)
+    - Any deletion fails → entire transaction rolls back, returns error
+    """
     try:
-        perm_system = ExplicitPermissionSystem()
-        granted = 0
-        failed = 0
-        results = []
+        from routes.auth.services.role_service import RoleService
+        role_service = RoleService(db)
         
-        for permission_id in permission_data.permission_ids:
+        # Get user's organization
+        org_id, _ = role_service.get_user_organization(current_user.user_id)
+        
+        # Get parameters with validation
+        role_ids = request_body.get("role_ids", [])
+        hard_delete = request_body.get("hard_delete", False)
+        offset = request_body.get("offset", 0)
+        limit = request_body.get("limit", 20)
+        
+        # Validate offset and limit
+        if offset < 0:
+            offset = 0
+        if limit < 1 or limit > 100:
+            limit = 20
+
+        if not role_ids:
+            raise AppException(
+                message="No role IDs provided for deletion",
+                code="NO_ROLE_IDS_PROVIDED"
+            )
+        
+        # Validate role IDs are integers
+        validated_role_ids = []
+        for i, role_id in enumerate(role_ids):
             try:
-                # Validate permission ID exists (accepts string)
-                if not perm_system.validate_permission_id(permission_id, db):
-                    results.append({
-                        "permission_id": permission_id,
-                        "success": False,
-                        "message": "Invalid permission ID"
-                    })
-                    failed += 1
-                    continue
-                
-                # Convert to int for database
-                permission_id_int = int(permission_id)
-                    
-                db.execute_insert(
-                    auth_query("ADD_USER_PERMISSION"),
-                    (user_id, permission_id_int, current_user.id)
+                role_id_int = int(role_id)
+                validated_role_ids.append(role_id_int)
+            except (ValueError, TypeError):
+                raise AppException(
+                    message=f"Invalid role ID '{role_id}' at index {i}",
+                    code="INVALID_ROLE_ID"
                 )
-                granted += 1
-                results.append({
-                    "permission_id": permission_id,
-                    "success": True,
-                    "message": "Permission granted"
-                })
-                
-                # Log the action
-                db.execute_insert(
-                    auth_query("LOG_PERMISSION_ACTION"),
-                    (user_id, permission_id_int, 'GRANT', current_user.id)
-                )
-                
-            except Exception as e:
-                failed += 1
-                results.append({
-                    "permission_id": permission_id,
-                    "success": False,
-                    "message": f"Error: {str(e)}"
-                })
-        
-        # Clear cache
-        perm_system.get_user_permission_ids.cache_clear()
-        
-        return success_response(
-            {"results": results},
-            f"Permissions updated: {granted} granted, {failed} failed"
-        )
-    except Exception as e:
-        return error_response(f"Failed to grant permissions: {str(e)}")
 
-@router.delete("/user/{user_id}")
-async def revoke_permissions(
-    user_id: int,
-    permission_data: UserPermissionsRequest,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_MANAGE)),
-    db = Depends(get_db)
-):
-    """Revoke permissions from user by IDs - accepts string IDs"""
-    try:
-        perm_system = ExplicitPermissionSystem()
-        revoked = 0
-        failed = 0
-        results = []
-        
-        for permission_id in permission_data.permission_ids:
-            try:
-                # Convert to int for database
-                permission_id_int = int(permission_id)
-                
-                success = db.execute_update(
-                    auth_query("REMOVE_USER_PERMISSION"),
-                    (user_id, permission_id_int)
-                )
-                
-                if success:
-                    revoked += 1
-                    results.append({
-                        "permission_id": permission_id,
-                        "success": True,
-                        "message": "Permission revoked"
-                    })
-                    db.execute_insert(
-                        auth_query("LOG_PERMISSION_ACTION"),
-                        (user_id, permission_id_int, 'REVOKE', current_user.id)
-                    )
-                else:
-                    failed += 1
-                    results.append({
-                        "permission_id": permission_id,
-                        "success": False,
-                        "message": "Permission not found"
-                    })
-                
-            except Exception as e:
-                failed += 1
-                results.append({
-                    "permission_id": permission_id,
-                    "success": False,
-                    "message": f"Error: {str(e)}"
-                })
-        
-        perm_system.get_user_permission_ids.cache_clear()
-        
-        return success_response(
-            {"results": results},
-            f"Permissions revoked: {revoked} revoked, {failed} failed"
+        # Execute bulk delete (all-or-nothing)
+        operation_result = role_service.bulk_delete_roles(
+            org_id=org_id,
+            role_ids=validated_role_ids,
+            deleted_by=current_user.user_id,
+            hard_delete=hard_delete
         )
-    except Exception as e:
-        return error_response(f"Failed to revoke permissions: {str(e)}")
+        
+        # Log successful operation
+        logger.info(
+            f"User {current_user.user_id} bulk deleted {operation_result['deleted_count']} roles. "
+            f"Deleted IDs: {operation_result['deleted_ids']}, Hard delete: {hard_delete}"
+        )
+        
+        # Get paginated data after successful deletion
+        paginated_result = db.fetch_one(
+            permission_query("ORGANIZATION_ROLES_QUERY"),
+            {
+                "current_user_id": current_user.user_id,
+                "offset": offset,
+                "limit": limit
+            }
+        )
 
-@router.get("/user/{user_id}/effective")
-async def get_effective_permissions(
-    user_id: int,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
-):
-    """Get user's effective permissions (including role-based) - returns string IDs"""
-    try:
-        perm_system = ExplicitPermissionSystem()
-        effective_permissions = perm_system.get_user_permission_ids_with_roles(user_id, db)  # String IDs
+        if not paginated_result or 'roles_data' not in paginated_result:
+            raise AppException(
+                message="Failed to fetch roles data after deletion",
+                code="ROLES_FETCH_ERROR"
+            )
         
-        response_data = UserPermissionsResponse(
-            user_id=user_id,
-            permission_ids=list(effective_permissions)  # String IDs
-        )
+        # Add operation summary to response
+        roles_response = paginated_result['roles_data']
+
+        return {
+            "data": roles_response,
+            "operation_metadata": operation_result            
+        }
         
-        return success_response(response_data.dict(), "Effective permissions loaded")
+    except AppException as e:
+        # Transaction was rolled back
+        logger.warning(f"Bulk delete failed for user {current_user.user_id}: {e.message}")
+        raise
+
     except Exception as e:
-        return error_response(f"Failed to get effective permissions: {str(e)}")
+        logger.exception(f"Unexpected error in bulk role deletion: {e}")
+        raise AppException(
+            message="Failed to delete roles in bulk",
+            code="BULK_ROLE_DELETE_ERROR"
+        )
+
+# ----------------------------------------------------
+# ORGANIZATION ROLES ENDPOINT -- END
+# ----------------------------------------------------
+
 
 # ============ PERMISSION VALIDATION ============
 @router.post("/validate-child-permissions")
@@ -595,35 +961,6 @@ async def check_power_level(
     except Exception as e:
         return error_response(f"Failed to check power level: {str(e)}")
 
-
-
-@router.get("/user/{user_id}/details")
-async def get_user_permissions_with_details(
-    user_id: int,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
-    db = Depends(get_db)
-):
-    """Get user permissions with detailed information - returns string IDs"""
-    try:
-        permissions = await db.fetch_all(
-            auth_query("GET_USER_PERMISSIONS_WITH_DETAILS"),
-            (user_id,),
-            fetch=True
-        )
-        
-        # Convert permission IDs to string for frontend
-        for perm in permissions:
-            perm['permission_id'] = str(perm['permission_id'])
-        
-        response_data = {
-            "user_id": user_id,
-            "permissions": permissions,
-            "total_permissions": len(permissions)
-        }
-        
-        return success_response(response_data, "User permission details loaded")
-    except Exception as e:
-        return error_response(f"Failed to get user permission details: {str(e)}")
 
 # ============ ROLE TEMPLATES ============
 @router.get("/templates")
@@ -1015,87 +1352,3 @@ async def get_permission_audit_logs(
         return success_response(response_data, "Audit logs loaded")
     except Exception as e:
         return error_response(f"Failed to get audit logs: {str(e)}")
-
-# ============ BULK OPERATIONS ============
-@router.post("/roles/bulk-permissions")
-async def bulk_update_role_permissions(
-    update_data: Dict[str, Any],
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
-    db = Depends(get_db)
-):
-    """Bulk update permissions for multiple roles - accepts string IDs"""
-    try:
-        updates = update_data.get("updates", [])
-        results = []
-        
-        for update in updates:
-            role_name = update.get("role_name")
-            permission_ids = update.get("permission_ids", [])
-            
-            if not role_name or role_name not in ["basic", "creator", "moderator", "admin"]:
-                results.append({
-                    "role_name": role_name,
-                    "success": False,
-                    "message": "Invalid role name"
-                })
-                continue
-            
-            try:
-                perm_system = ExplicitPermissionSystem()
-                
-                # Validate permission IDs (accepts string IDs)
-                invalid_permissions = []
-                for perm_id in permission_ids:
-                    if not perm_system.validate_permission_id(perm_id, db):
-                        invalid_permissions.append(perm_id)
-                
-                if invalid_permissions:
-                    results.append({
-                        "role_name": role_name,
-                        "success": False,
-                        "message": f"Invalid permission IDs: {invalid_permissions}"
-                    })
-                    continue
-                
-                # Save to database (handles string to int conversion)
-                success = perm_system.save_role_permissions(
-                    role_name, permission_ids, current_user.id, db
-                )
-                
-                if success:
-                    results.append({
-                        "role_name": role_name,
-                        "success": True,
-                        "message": f"Updated {len(permission_ids)} permissions",
-                        "permission_count": len(permission_ids)
-                    })
-                else:
-                    results.append({
-                        "role_name": role_name,
-                        "success": False,
-                        "message": "Failed to save permissions"
-                    })
-                    
-            except Exception as e:
-                results.append({
-                    "role_name": role_name,
-                    "success": False,
-                    "message": f"Error: {str(e)}"
-                })
-        
-        success_count = sum(1 for r in results if r["success"])
-        
-        return success_response(
-            {
-                "results": results,
-                "summary": {
-                    "total_roles": len(updates),
-                    "successful": success_count,
-                    "failed": len(updates) - success_count
-                }
-            },
-            f"Bulk update completed: {success_count} successful, {len(updates) - success_count} failed"
-        )
-        
-    except Exception as e:
-        return error_response(f"Bulk update failed: {str(e)}")

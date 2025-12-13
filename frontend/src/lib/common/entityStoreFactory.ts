@@ -15,8 +15,12 @@ export function createEntityStore<T>(
     arrayFields?: string[];
   } = {},
   createFn?: (data: Partial<T> | Partial<T>[]) => Promise<T | T[]>,
-  updateFn?: (data: Partial<T>[]) => Promise<T[]>,
-  deleteFn?: (id: (string | number)[]) => Promise<void>
+  updateFn?: (
+    data: Partial<T>[]
+  ) => Promise<PaginatedData<T>>,
+  deleteFn?: (
+    data: Partial<T>[]
+  ) => Promise<PaginatedData<T>>
 ) {
   const cache = writable<Record<number, (T & { id: string | number })[]>>({});
   const pagination = writable<PaginatedData<T & { id: string | number }>>({
@@ -96,8 +100,8 @@ export function createEntityStore<T>(
 
     // Case 2: Organization changed
     if (currentOrgId !== newOrgId) {
-      return { 
-        changed: true, 
+      return {
+        changed: true,
         reason: `Organization changed: ${currentOrgId} → ${newOrgId}`,
         changedTables: ['*ALL*'] // Special marker for org change
       };
@@ -131,10 +135,10 @@ export function createEntityStore<T>(
     }
 
     if (changedTables.length > 0) {
-      return { 
-        changed: true, 
+      return {
+        changed: true,
         reason: `Table versions changed`,
-        changedTables 
+        changedTables
       };
     }
 
@@ -151,7 +155,7 @@ export function createEntityStore<T>(
       currentTableVersions.set(v.table_name, v.table_version);
     });
 
-    console.log(`📝 Updated fingerprint: org_id=${newOrgId}, query_hash=${queryHash.substring(0, 20)}..., versions=`, 
+    console.log(`📝 Updated fingerprint: org_id=${newOrgId}, query_hash=${queryHash.substring(0, 20)}..., versions=`,
       Array.from(currentTableVersions.entries()));
   }
 
@@ -285,7 +289,7 @@ export function createEntityStore<T>(
 
 
   // Use existing fetchEntityBlock reference
-  const fetchEntityBlock = (blockNum: number) => 
+  const fetchEntityBlock = (blockNum: number) =>
     fetchBlock(blockNum, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
 
   const paginationApi = createGenericPagination<T & { id: string | number }>({
@@ -450,7 +454,7 @@ export function createEntityStore<T>(
         const itemValue = (item as any)[key];
 
         if (isArrayField) {
-          return Array.isArray(itemValue) && itemValue.some(v => 
+          return Array.isArray(itemValue) && itemValue.some(v =>
             String(v).toLowerCase() === String(value).toLowerCase()
           );
         } else {
@@ -544,55 +548,201 @@ export function createEntityStore<T>(
     }
   }
 
-  async function updateItem(id: (string | number)[], data: Partial<T>[]) {
-    if (!updateFn) throw new Error(`${entityName} store has no updateFn`);
-    mutating.set(true);
-    try {
-      const updated = await updateFn(data);
-      const entities = Array.isArray(updated) ? updated : [updated];
-      const normalized = entities.map(normalizeItem);
+  // ------------------------------
+  // Shared Mutation Handler
+  // ------------------------------
+  async function handleMutation(
+    mutationFn: (data: Partial<T>[], pagination?: { offset: number; limit: number }) => Promise<PaginatedData<T>>,
+    data: Partial<T>[],
+    operationName: string
+  ): Promise<(T & { id: string | number })[]> {
+    // Get current pagination state
+    const { page, page_size } = get(pagination);
+    const currentOffset = (page - 1) * page_size;
+    const currentBlock = Math.floor(currentOffset / blockSize) + 1;
 
-      if (isFullyCached) {
-        await ensureAllBlocksCached();
-        for (const entity of normalized) {
-          paginationApi.addOrUpdateItem(entity);
-        }
-      } else {
-        const { page, page_size } = get(pagination);
-        const currentBlock = Math.floor((page - 1) * page_size / blockSize) + 1;
-        await fetchEntityBlock(currentBlock);
-      }
+    // Pass pagination context to mutation function
+    const paginationContext = {
+      offset: currentOffset,
+      limit: page_size
+    };
 
+    // Call mutation function
+    const result = await mutationFn(data, paginationContext);
+
+    // Backend returns paginated data
+    if (result && typeof result === 'object' && 'items' in result) {
+      const paginatedResponse = result as PaginatedData<T>;
+      const normalized = paginatedResponse.items.map(normalizeItem);
+
+      // Invalidate cache from current block onwards
+      invalidateBlocks(currentBlock);
+
+      // Update cache with new data
+      const cacheVal = get(cache);
+      cacheVal[currentBlock] = normalized;
+      cache.set({ ...cacheVal });
+
+      // Update pagination store
+      pagination.set({
+        items: normalized,
+        total: paginatedResponse.total,
+        page,
+        page_size,
+        total_pages: Math.ceil(paginatedResponse.total / page_size),
+        has_next: page < Math.ceil(paginatedResponse.total / page_size),
+        has_prev: page > 1
+      });
+
+      console.log(`✅ ${operationName} completed, new total: ${paginatedResponse.total}`);
+      
       // Clear fingerprint on mutation (tables changed)
       currentTableVersions.clear();
       currentOrgId = 0;
 
       return normalized;
+    } else {
+      throw new Error(`Invalid response format from ${entityName} ${operationName} function`);
+    }
+  }
+
+  // ------------------------------
+  // Updated updateItem (uses shared handler)
+  // ------------------------------
+  async function updateItem(ids: (string | number)[], data: Partial<T>[]) {
+    if (!updateFn) throw new Error(`${entityName} store has no updateFn`);
+    mutating.set(true);
+    
+    try {
+      return await handleMutation(updateFn, data, 'update');
+    } catch (error) {
+      console.error('Update failed in store:', error);
+      throw error;
     } finally {
       mutating.set(false);
     }
   }
 
-  async function deleteItem(id: (string | number)[]) {
+  // ------------------------------
+  // Updated deleteItem (uses shared handler)
+  // ------------------------------
+  async function deleteItem(ids: (string | number)[], data: Partial<T>[]) {
     if (!deleteFn) throw new Error(`${entityName} store has no deleteFn`);
     mutating.set(true);
+    
     try {
-      await deleteFn(id);
-      const { page, page_size, total } = get(pagination);
-      const currentBlock = Math.floor((page - 1) * page_size / blockSize) + 1;
+      return await handleMutation(deleteFn, data, 'delete');
+    } catch (error) {
+      console.error('Delete failed in store:', error);
+      throw error;
+    } finally {
+      mutating.set(false);
+    }
+  }
 
-      const startingBlockToInvalidate = currentBlock;
-      invalidateBlocks(startingBlockToInvalidate);
-      paginationApi.deleteItem(id);
-      pagination.update(p => ({ 
-        ...p, 
-        total: Math.max(0, total - id.length) 
-      }));
+  /*async function updateItem(id: (string | number)[], data: Partial<T>[]) {
+    if (!updateFn) throw new Error(`${entityName} store has no updateFn`);
+    mutating.set(true);
+    try {
+      // Get current pagination state
+      const { page, page_size } = get(pagination);
+      const currentOffset = (page - 1) * page_size;
+      const currentBlock = Math.floor(currentOffset / blockSize) + 1;
 
-      if (isFullyCached) {
-        await setView(page, page_size, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
+      // Pass pagination context to update function
+      const paginationContext = {
+        offset: currentOffset,
+        limit: blockSize
+      };
+
+      // Call update with pagination context
+      const updated = await updateFn(data, paginationContext);
+
+      // Check if backend returned paginated data
+      if (updated && typeof updated === 'object' && 'items' in updated) {
+        // Backend returned paginated data - use it directly
+        const paginatedResponse = updated as PaginatedData<T>;
+        const normalized = paginatedResponse.items.map(normalizeItem);
+
+        // Invalidate blocks from current block onwards
+        invalidateBlocks(currentBlock);
+
+        // Update cache with new data from backend
+        const cacheVal = get(cache);
+        cacheVal[currentBlock] = normalized;
+        cache.set({ ...cacheVal });
+
+
+        // ✅ CONSISTENT: Use pagination.set for full update
+        pagination.set({
+          items: normalized,
+          total: paginatedResponse.total,
+          page,
+          page_size,
+          total_pages: Math.ceil(paginatedResponse.total / page_size),
+          has_next: page < Math.ceil(paginatedResponse.total / page_size),
+          has_prev: page > 1
+        });
+
+        // Clear fingerprint on mutation (tables changed)
+        currentTableVersions.clear();
+        currentOrgId = 0;
+
+        return normalized;
       } else {
-        await fetchBlock(currentBlock, blockSize, { queryFilter: lastQueryFilter, querySort: lastQuerySort });
+        throw new Error(`Invalid response format from ${entityName} update function`);
+      }
+    } finally {
+      mutating.set(false);
+    }
+  }
+
+  async function deleteItem(ids: (string | number)[], data: Partial<T>[]) {
+    if (!deleteFn) throw new Error(`${entityName} store has no deleteFn`);
+    mutating.set(true);
+    
+    try {
+      // Get current pagination state
+      const { page, page_size } = get(pagination);
+      const currentOffset = (page - 1) * page_size;
+      const currentBlock = Math.floor(currentOffset / blockSize) + 1;
+
+      // Pass pagination context to delete function
+      const paginationContext = {
+        offset: currentOffset,
+        limit: page_size  // Use page_size for proper pagination
+      };
+
+      // Call delete function with pagination context
+      const result = await deleteFn(data, paginationContext);
+
+      // Backend returns paginated data after deletion
+      if (result && typeof result === 'object' && 'items' in result) {
+        const paginatedResponse = result as PaginatedData<T>;
+        const normalized = paginatedResponse.items.map(normalizeItem);
+
+        // Invalidate cache from current block onwards
+        invalidateBlocks(currentBlock);
+
+        // Update cache with new data
+        const cacheVal = get(cache);
+        cacheVal[currentBlock] = normalized;
+        cache.set({ ...cacheVal });
+
+        // Update pagination store with backend response
+        pagination.set({
+          items: normalized,
+          total: paginatedResponse.total,
+          page,
+          page_size,
+          total_pages: Math.ceil(paginatedResponse.total / page_size),
+          has_next: page < Math.ceil(paginatedResponse.total / page_size),
+          has_prev: page > 1
+        });
+
+        console.log(`🗑️ Deleted ${ids.length} items, new total: ${paginatedResponse.total}`);
+      } else {
+        throw new Error(`Invalid response format from ${entityName} delete function`);
       }
 
       // Clear fingerprint on mutation (tables changed)
@@ -606,6 +756,7 @@ export function createEntityStore<T>(
       mutating.set(false);
     }
   }
+    */
 
   // ------------------------------
   // Bulk Actions / Export (unchanged)
@@ -626,11 +777,11 @@ export function createEntityStore<T>(
     if (nextPage <= totalPages) {
       const nextBlockNum = Math.floor((nextPage - 1) * pageSize / blockSize) + 1;
       if (!cacheVal[nextBlockNum]) {
-         const { items } = await fetchEntityBlock(nextBlockNum);
-       /* const { items } = await fetchBlock(nextBlockNum, blockSize, {
-          queryFilter: lastQueryFilter,
-          querySort: lastQuerySort
-        });*/
+        const { items } = await fetchEntityBlock(nextBlockNum);
+        /* const { items } = await fetchBlock(nextBlockNum, blockSize, {
+           queryFilter: lastQueryFilter,
+           querySort: lastQuerySort
+         });*/
         cacheVal[nextBlockNum] = items;
         cache.set({ ...cacheVal });
       } else {
@@ -659,7 +810,7 @@ export function createEntityStore<T>(
   function getFingerprint() {
     return {
       org_id: currentOrgId,
-      table_versions: Array.from(currentTableVersions.entries()).map(([table, version]) => 
+      table_versions: Array.from(currentTableVersions.entries()).map(([table, version]) =>
         ({ table_name: table, table_version: version, org_id: currentOrgId })),
       query_hash: currentQueryHash
     };
@@ -670,9 +821,9 @@ export function createEntityStore<T>(
     currentTableVersions.clear();
     currentOrgId = 0;
     // Fetch a single item to get latest fingerprint
-    await fetchBlock(1, 1, { 
-      queryFilter: lastQueryFilter, 
-      querySort: lastQuerySort 
+    await fetchBlock(1, 1, {
+      queryFilter: lastQueryFilter,
+      querySort: lastQuerySort
     });
   }
 
@@ -686,9 +837,9 @@ export function createEntityStore<T>(
     loading,
     mutating,
     ...paginationApi,
-    fetchEntityBlock: (blockNum: number) => fetchBlock(blockNum, blockSize, { 
-      queryFilter: lastQueryFilter, 
-      querySort: lastQuerySort 
+    fetchEntityBlock: (blockNum: number) => fetchBlock(blockNum, blockSize, {
+      queryFilter: lastQueryFilter,
+      querySort: lastQuerySort
     }),
     setView,
     getById,

@@ -1,5 +1,5 @@
-import type { 
-  PermissionDetail, 
+import type {
+  PermissionDetail,
   PermissionStructure,
   PowerLevel,
   POWER_LEVELS,
@@ -10,7 +10,7 @@ import type {
   PermissionConflictResponse
 } from './types_permission';
 
-import type {RolePermissions} from './stores/types_permission';
+import type { RolePermissions } from './stores/types_permission';
 
 export class PermissionUtils {
   private static permissionCache: Map<string, PermissionDetail> = new Map();  // ← CHANGED TO STRING
@@ -66,11 +66,11 @@ export class PermissionUtils {
                 }
               }
             }
-            
+
             // Check card permissions
             for (const card of menu.cards) {
               if (card.id === cardKey) {
-                for (const permission of card.permissions) {
+                for (const permission of card.permissions || []) {
                   if (permission.permission_action === action) {
                     return userPermissions.has(permission.id);  // String ID comparison
                   }
@@ -85,46 +85,54 @@ export class PermissionUtils {
   }
 
   // Power Constraint Calculations
-    static getMaxPower(
-      rolePermissions: RolePermissions[], 
-      permissionStructure: PermissionStructure
-    ): number {
-      let maxPower = 0;
-      
-      for (const rolePerm of rolePermissions) {
-        const { permissstruct_id, granted_action_key } = rolePerm;
-        
-        // Find the structure (module, menu, or card)
-        const structure = this.findStructureById(permissstruct_id, permissionStructure);
-        
-        if (structure && structure.allowed_actions) {
-          // Check each granted action
-          for (const actionKey of granted_action_key) {
-            const action = structure.allowed_actions.find(a => a.action_key === actionKey);
-            if (action && action.power_level > maxPower) {
-              maxPower = action.power_level;
-            }
+  static getMaxPower(
+    rolePermissions: (RolePermissions | string)[],
+    permissionStructure: PermissionStructure
+  ): number {
+    let maxPower = 0;
+
+    for (const rolePerm of rolePermissions) {
+      if (typeof rolePerm === 'string') {
+        const detail = this.findPermissionById(rolePerm, permissionStructure);
+        if (detail && detail.power_level > maxPower) {
+          maxPower = detail.power_level;
+        }
+        continue;
+      }
+
+      const { permissstruct_id, granted_action_key } = rolePerm;
+
+      // Find the structure (module, menu, or card)
+      const structure = this.findStructureById(permissstruct_id, permissionStructure);
+
+      if (structure && structure.allowed_actions && granted_action_key) {
+        // Check each granted action
+        for (const actionKey of granted_action_key) {
+          const action = structure.allowed_actions.find(a => a.action_key === actionKey);
+          if (action && action.power_level > maxPower) {
+            maxPower = action.power_level;
           }
         }
+      }
     }
-    
+
     return maxPower;
   }
 
   static findStructureById(
-    structureId: string, 
+    structureId: string,
     permissionStructure: PermissionStructure
   ): ModuleDetail | MenuDetail | CardDetail | null {
-    
+
     // Search in modules
     for (const module of permissionStructure.modules) {
       if (module.id === structureId) return module;
-      
+
       // Search in module's menus
       if (module.menus) {
         for (const menu of module.menus) {
           if (menu.id === structureId) return menu;
-          
+
           // Search in menu's cards
           if (menu.cards) {
             for (const card of menu.cards) {
@@ -134,7 +142,7 @@ export class PermissionUtils {
         }
       }
     }
-    
+
     return null;
   }
   static getAllowedPermissions(
@@ -143,8 +151,8 @@ export class PermissionUtils {
     permissionStructure: PermissionStructure
   ): PermissionDetail[] {
     const maxParentPower = this.getMaxPower(parentPermissionIds, permissionStructure);
-    
-    return availablePermissions.filter(permission => 
+
+    return availablePermissions.filter(permission =>
       permission.power_level <= maxParentPower
     );
   }
@@ -167,10 +175,10 @@ export class PermissionUtils {
             }
           }
         }
-        
+
         // Check card permissions
         for (const card of menu.cards) {
-          for (const permission of card.permissions) {
+          for (const permission of card.permissions || []) {
             if (permission.id === permissionId) {
               this.permissionCache.set(permissionId, permission);
               return permission;
@@ -185,7 +193,7 @@ export class PermissionUtils {
   // Permission Conflict Detection with string IDs
   static detectPermissionConflicts(permissionIds: string[], permissionStructure: PermissionStructure): PermissionConflictResponse {  // ← CHANGED TO STRING
     const cacheKey = permissionIds.sort().join('-');
-    
+
     // Check conflict cache
     if (this.conflictCache.has(cacheKey)) {
       const conflicts = this.conflictCache.get(cacheKey) || [];
@@ -197,17 +205,17 @@ export class PermissionUtils {
     }
 
     const conflicts: PermissionConflict[] = [];
-    const permissions = permissionIds.map(id => 
+    const permissions = permissionIds.map(id =>
       this.findPermissionById(id, permissionStructure)
     ).filter(Boolean) as PermissionDetail[];
 
     // Check for duplicate actions in same context
     const actionContexts = new Map<string, string[]>();
-    
+
     for (const perm of permissions) {
       const context = `${perm.module_name}-${perm.menu_name}-${perm.card_name}`;
       const key = `${context}-${perm.permission_action}`;
-      
+
       if (actionContexts.has(key)) {
         const existing = actionContexts.get(key)!;
         conflicts.push({
@@ -243,7 +251,7 @@ export class PermissionUtils {
     }
 
     this.conflictCache.set(cacheKey, conflicts);
-    
+
     return {
       conflicts,
       has_conflicts: conflicts.length > 0,
@@ -253,19 +261,19 @@ export class PermissionUtils {
 
   private static generateConflictRecommendations(conflicts: PermissionConflict[]): string[] {
     const recommendations: string[] = [];
-    
+
     if (conflicts.some(c => c.severity === 'high')) {
       recommendations.push('Resolve duplicate permission actions in the same context');
     }
-    
+
     if (conflicts.some(c => c.severity === 'medium')) {
       recommendations.push('Review large power level gaps between permissions');
     }
-    
+
     if (conflicts.length > 0) {
       recommendations.push('Consider using role templates for consistent permission sets');
     }
-    
+
     return recommendations;
   }
 
@@ -285,7 +293,7 @@ export class PermissionUtils {
 
   // Power Analysis with string IDs
   static analyzePower(permissionIds: string[], permissionStructure: PermissionStructure) {  // ← CHANGED TO STRING
-    const permissions = permissionIds.map(id => 
+    const permissions = permissionIds.map(id =>
       this.findPermissionById(id, permissionStructure)
     ).filter(Boolean) as PermissionDetail[];
 
@@ -345,7 +353,7 @@ export class PermissionUtils {
     if (permission.icon) {
       return permission.icon;
     }
-    
+
     const icons: Record<string, string> = {
       view: '👁️',
       create: '➕',
@@ -375,7 +383,7 @@ export class PermissionUtils {
   // Menu Selection Helpers with string IDs
   static getMenuPermissions(menuId: string, permissionStructure: PermissionStructure): string[] {  // ← CHANGED TO STRING
     const permissions: string[] = [];
-    
+
     for (const module of permissionStructure.modules) {
       for (const menu of module.menus) {
         if (menu.id === menuId) {
@@ -383,23 +391,23 @@ export class PermissionUtils {
           if (menu.permissions) {
             permissions.push(...menu.permissions.map(p => p.id));
           }
-          
+
           // Add card permissions
           for (const card of menu.cards) {
-            permissions.push(...card.permissions.map(p => p.id));
+            permissions.push(...(card.permissions || []).map(p => p.id));
           }
         }
       }
     }
-    
+
     return permissions;
   }
 
   static isMenuFullySelected(menuId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {  // ← CHANGED TO STRING
     const menuPermissions = this.getMenuPermissions(menuId, permissionStructure);
     const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-    
-    return menuPermissions.every(permissionId => 
+
+    return menuPermissions.every(permissionId =>
       selectedPermissionIds.includes(permissionId)
     );
   }
@@ -407,8 +415,8 @@ export class PermissionUtils {
   static isMenuPartiallySelected(menuId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {  // ← CHANGED TO STRING
     const menuPermissions = this.getMenuPermissions(menuId, permissionStructure);
     const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-    
-    return menuPermissions.some(permissionId => 
+
+    return menuPermissions.some(permissionId =>
       selectedPermissionIds.includes(permissionId)
     ) && !this.isMenuFullySelected(menuId, selectedPermissions, permissionStructure);
   }
@@ -416,7 +424,7 @@ export class PermissionUtils {
   // Module Selection Helpers with string IDs
   static getModulePermissions(moduleId: string, permissionStructure: PermissionStructure): string[] {  // ← CHANGED TO STRING
     const permissions: string[] = [];
-    
+
     for (const module of permissionStructure.modules) {
       if (module.id === moduleId) {
         for (const menu of module.menus) {
@@ -424,23 +432,23 @@ export class PermissionUtils {
           if (menu.permissions) {
             permissions.push(...menu.permissions.map(p => p.id));
           }
-          
+
           // Add card permissions
           for (const card of menu.cards) {
-            permissions.push(...card.permissions.map(p => p.id));
+            permissions.push(...(card.permissions || []).map(p => p.id));
           }
         }
       }
     }
-    
+
     return permissions;
   }
 
   static isModuleFullySelected(moduleId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {  // ← CHANGED TO STRING
     const modulePermissions = this.getModulePermissions(moduleId, permissionStructure);
     const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-    
-    return modulePermissions.every(permissionId => 
+
+    return modulePermissions.every(permissionId =>
       selectedPermissionIds.includes(permissionId)
     );
   }
@@ -448,8 +456,8 @@ export class PermissionUtils {
   static isModulePartiallySelected(moduleId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {  // ← CHANGED TO STRING
     const modulePermissions = this.getModulePermissions(moduleId, permissionStructure);
     const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-    
-    return modulePermissions.some(permissionId => 
+
+    return modulePermissions.some(permissionId =>
       selectedPermissionIds.includes(permissionId)
     ) && !this.isModuleFullySelected(moduleId, selectedPermissions, permissionStructure);
   }
@@ -468,42 +476,42 @@ export class PermissionUtils {
   }
 
   // Add to utils_permission.ts
-static isCardFullySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
-  const card = this.findCardById(cardId, permissionStructure);
-  if (!card) return false;
-  
-  const cardPermissionIds = card.permissions.map(p => p.id);
-  const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-  
-  return cardPermissionIds.every(permissionId => 
-    selectedPermissionIds.includes(permissionId)
-  );
-}
+  static isCardFullySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
+    const card = this.findCardById(cardId, permissionStructure);
+    if (!card) return false;
 
-static isCardPartiallySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
-  const card = this.findCardById(cardId, permissionStructure);
-  if (!card) return false;
-  
-  const cardPermissionIds = card.permissions.map(p => p.id);
-  const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
-  
-  return cardPermissionIds.some(permissionId => 
-    selectedPermissionIds.includes(permissionId)
-  ) && !this.isCardFullySelected(cardId, selectedPermissions, permissionStructure);
-}
+    const cardPermissionIds = (card.permissions || []).map(p => p.id);
+    const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
 
-static findCardById(cardId: string, permissionStructure: PermissionStructure): CardDetail | null {
-  for (const module of permissionStructure.modules) {
-    for (const menu of module.menus) {
-      for (const card of menu.cards) {
-        if (card.id === cardId) {
-          return card;
+    return cardPermissionIds.every(permissionId =>
+      selectedPermissionIds.includes(permissionId)
+    );
+  }
+
+  static isCardPartiallySelected(cardId: string, selectedPermissions: Map<string, Set<string>>, permissionStructure: PermissionStructure): boolean {
+    const card = this.findCardById(cardId, permissionStructure);
+    if (!card) return false;
+
+    const cardPermissionIds = (card.permissions || []).map(p => p.id);
+    const selectedPermissionIds = this.getSelectedPermissionIds(selectedPermissions);
+
+    return cardPermissionIds.some(permissionId =>
+      selectedPermissionIds.includes(permissionId)
+    ) && !this.isCardFullySelected(cardId, selectedPermissions, permissionStructure);
+  }
+
+  static findCardById(cardId: string, permissionStructure: PermissionStructure): CardDetail | null {
+    for (const module of permissionStructure.modules) {
+      for (const menu of module.menus) {
+        for (const card of menu.cards) {
+          if (card.id === cardId) {
+            return card;
+          }
         }
       }
     }
+    return null;
   }
-  return null;
-}
 
   static getPowerDistribution(
     selectedPermissionIds: string[],
@@ -514,7 +522,7 @@ static findCardById(cardId: string, permissionStructure: PermissionStructure): C
     }
 
     const distribution = { low: 0, medium: 0, high: 0, critical: 0 };
-    
+
     selectedPermissionIds.forEach(permissionId => {
       const permission = permissionStructure.permissions_list[permissionId];
       if (permission) {
@@ -530,7 +538,7 @@ static findCardById(cardId: string, permissionStructure: PermissionStructure): C
         }
       }
     });
-    
+
     return distribution;
   }
 

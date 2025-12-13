@@ -26,7 +26,11 @@ CREATE TABLE users (
     email_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'IA',    
+    status VARCHAR(20) DEFAULT 'IA',
+    department VARCHAR(100),
+    location VARCHAR(100),
+    status_effective_from TIMESTAMP,
+    status_effective_to TIMESTAMP,
     UNIQUE(org_id, email),
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );

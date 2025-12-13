@@ -167,7 +167,14 @@ class UserModel(BaseModel):
     email_verified: Optional[bool] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    status: Optional[str] = None
+    department: Optional[str] = None
+    location: Optional[str] = None
+    status_effective_from: Optional[datetime] = None
+    status_effective_to: Optional[datetime] = None
     roles: List[str] = []
 
+    class Config:
+        from_attributes = True
 
     

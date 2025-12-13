@@ -109,11 +109,11 @@ const permissionStructureCache = {
 export const userMaxPower = derived(
   [permissionStructure, userPermissions],
   ([$permissionStructure, $userPermissions]) =>
-    $permissionStructure 
+    $permissionStructure
       ? PermissionUtils.getMaxPower(
-          Array.from($userPermissions),
-          $permissionStructure
-        )
+        Array.from($userPermissions),
+        $permissionStructure
+      )
       : 0
 );
 
@@ -205,7 +205,7 @@ function calculateRolePowerLevel(permissionIds: string[], permissionStructure: P
 
 // ENHANCED: Update systemRoles store with new permissions
 function updateSystemRolePermissions(roleKey: string, newPermissions: string[]): void {
-  systemRoles.update(roles => 
+  systemRoles.update(roles =>
     roles.map(role => {
       if (role.role_id === roleKey) {
         const $permissionStructure = get(permissionStructure);
@@ -245,16 +245,16 @@ export const permissionActions = {
   async loadPermissionStructure(forceRefresh = false) {
     const now = Date.now();
     const stale = now - get(lastFetched).structure > TTL;
-    
+
     // Check if already loading or data is fresh
     if (!forceRefresh && (get(loading).structure || (get(permissionStructure) && !stale))) {
       return;
     }
 
     // Check cache first (with longer TTL)
-    if (!forceRefresh && 
-        permissionStructureCache.data && 
-        now - permissionStructureCache.timestamp < permissionStructureCache.ttl) {
+    if (!forceRefresh &&
+      permissionStructureCache.data &&
+      now - permissionStructureCache.timestamp < permissionStructureCache.ttl) {
       permissionStructure.set(permissionStructureCache.data);
       lastFetched.update(lf => ({ ...lf, structure: now }));
       return;
@@ -262,22 +262,22 @@ export const permissionActions = {
 
     loading.update(l => ({ ...l, structure: true }));
     error.update(e => ({ ...e, structure: null }));
-    
+
     try {
       const structure = await permissionApi.getPermissionStructure();
       permissionStructure.set(structure);
-      
+
       // Update cache and timestamps
       permissionStructureCache.data = structure;
       permissionStructureCache.timestamp = now;
       lastFetched.update(lf => ({ ...lf, structure: now }));
-      
+
       // Clear utility cache when structure changes
       PermissionUtils.clearCache();
     } catch (err) {
       const errorMsg = this.handleError(err, 'Failed to load permission structure');
       error.update(e => ({ ...e, structure: errorMsg }));
-      
+
       // Try to use cached data if available
       if (permissionStructureCache.data) {
         permissionStructure.set(permissionStructureCache.data);
@@ -299,10 +299,10 @@ export const permissionActions = {
 
     loading.update(l => ({ ...l, roles: true }));
     error.update(e => ({ ...e, roles: null }));
-    
+
     try {
       const roles = await permissionApi.getSystemRoles();
-      
+
       // ENHANCED: Calculate power levels and enhance role data
       const $permissionStructure = get(permissionStructure);
       const enhancedRoles = roles.map(role => ({
@@ -310,7 +310,7 @@ export const permissionActions = {
         power_level: calculateRolePowerLevel(role.permissions || [], $permissionStructure),
         permissions: role.permissions || [] // Ensure permissions array exists
       }));
-      
+
       systemRoles.set(enhancedRoles);
       lastFetched.update(lf => ({ ...lf, roles: now }));
     } catch (err) {
@@ -346,24 +346,31 @@ export const permissionActions = {
 
   // ✅ Load Role Data from Store (No API Call Needed)
   async loadRoleData(roleKey: string) {
-    const role = getRoleByKey(roleKey);
+    let role = getRoleByKey(roleKey);
+
+    // If role not found, ensure system roles are loaded
+    if (!role) {
+      await this.loadSystemRoles();
+      role = getRoleByKey(roleKey);
+    }
+
     if (!role) {
       throw new Error(`Role ${roleKey} not found in store`);
     }
 
     // Clear existing selections
     this.clearAllPermissions();
-    
+
     // Select permissions from store data
     if (role.permissions && role.permissions.length > 0) {
       role.permissions.forEach(permId => {
         this.selectPermissionGlobally(permId);
       });
     }
-    
+
     // Check for conflicts
     await this.checkPermissionConflicts();
-    
+
     return role;
   },
 
@@ -371,7 +378,7 @@ export const permissionActions = {
   async updateRolePermissions(roleKey: string, permissionIds: string[]): Promise<{ success: boolean; message: string; conflicts?: PermissionConflictResponse }> {
     loading.update(l => ({ ...l, saving: true }));
     error.update(e => ({ ...e, saving: null }));
-    
+
     try {
       // Check for conflicts before saving
       const conflicts = get(currentConflicts);
@@ -382,16 +389,16 @@ export const permissionActions = {
           conflicts
         };
       }
-      
+
       // Update local store FIRST for immediate UI update
       updateSystemRolePermissions(roleKey, permissionIds);
-      
+
       // Then call API for persistence
       const result = await permissionApi.updateRolePermissions(roleKey, permissionIds);
-      
+
       // Invalidate relevant caches after update
       this.invalidateStatsCache();
-      
+
       return {
         success: true,
         message: result.message || 'Permissions saved successfully'
@@ -401,7 +408,7 @@ export const permissionActions = {
       this.rollbackRoleUpdate(roleKey);
       const errorMsg = this.handleError(err, 'Failed to save permissions');
       error.update(e => ({ ...e, saving: errorMsg }));
-      
+
       return {
         success: false,
         message: errorMsg
@@ -424,7 +431,7 @@ export const permissionActions = {
   // ✅ Create New Role (Store + API)
   async createRole(roleData: { name: string; description: string; permissions: string[] }): Promise<{ success: boolean; message: string; role?: SystemRole }> {
     loading.update(l => ({ ...l, saving: true }));
-    
+
     try {
       // Call API to create role
       const result = await permissionApi.createRole({
@@ -432,7 +439,7 @@ export const permissionActions = {
         description: roleData.description,
         permission_ids: roleData.permissions
       });
-      
+
       if (result.success) {
         // Add new role to store
         const newRole: SystemRole = {
@@ -448,10 +455,10 @@ export const permissionActions = {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        
+
         systemRoles.update(roles => [...roles, newRole]);
         this.invalidateStatsCache();
-        
+
         return {
           success: true,
           message: result.message || 'Role created successfully',
@@ -481,18 +488,18 @@ export const permissionActions = {
     try {
       // Update local store FIRST
       this.updateUserRolesInStore(userId, roles);
-      
+
       // Update role user counts
       roles.forEach(roleKey => {
         updateRoleUserCount(roleKey, 1);
       });
-      
+
       // Then call API (using first role for now)
       const result = await roleApi.updateUserRole(userId, roles[0]);
-      
+
       // Invalidate caches after update
       this.invalidateStatsCache();
-      
+
       return {
         success: true,
         message: result.message || 'User role updated successfully'
@@ -519,7 +526,7 @@ export const permissionActions = {
 
     loading.update(l => ({ ...l, stats: true }));
     error.update(e => ({ ...e, stats: null }));
-    
+
     try {
       const stats = await roleApi.getSystemStats();
       systemStats.set(stats);
@@ -543,7 +550,7 @@ export const permissionActions = {
 
     loading.update(l => ({ ...l, quickActions: true }));
     error.update(e => ({ ...e, quickActions: null }));
-    
+
     try {
       const actions = await permissionApi.getQuickActions();
       quickActions.set(actions);
@@ -585,7 +592,7 @@ export const permissionActions = {
 
     loading.update(l => ({ ...l, userPermissions: true }));
     error.update(e => ({ ...e, userPermissions: null }));
-    
+
     try {
       const response = await permissionApi.getUserPermissions(userId);
       userPermissions.set(new Set(response.permission_ids));
@@ -611,9 +618,9 @@ export const permissionActions = {
 
   // ✅ Helper: Update role in store
   updateRoleInStore(roleKey: string, updates: Partial<SystemRole>) {
-    systemRoles.update(roles => 
-      roles.map(role => 
-        role.role_id === roleKey 
+    systemRoles.update(roles =>
+      roles.map(role =>
+        role.role_id === roleKey
           ? { ...role, ...updates }
           : role
       )
@@ -680,7 +687,7 @@ export const permissionActions = {
     roleTemplates.set(new Map());
     lastFetched.update(lf => ({ ...lf, roleTemplates: 0 }));
   },
-    // ✅ Existing methods for role operations
+  // ✅ Existing methods for role operations
   async loadRolePermissions(roleId: string) {
     try {
       // Use store-first approach instead of API call
@@ -712,10 +719,10 @@ export const permissionActions = {
   async assignUserToRole(userId: number, roleName: string): Promise<{ success: boolean; message: string }> {
     try {
       const result = await roleApi.assignUserToRole(userId, roleName);
-      
+
       // Invalidate caches after assignment
       this.invalidateStatsCache();
-      
+
       return {
         success: true,
         message: result.message || 'User assigned to role successfully'
@@ -732,10 +739,10 @@ export const permissionActions = {
   async removeUserFromRole(userId: number, roleName: string): Promise<{ success: boolean; message: string }> {
     try {
       const result = await roleApi.removeUserFromRole(userId, roleName);
-      
+
       // Invalidate caches after removal
       this.invalidateStatsCache();
-      
+
       return {
         success: true,
         message: result.message || 'User removed from role successfully'
@@ -755,13 +762,13 @@ export const permissionActions = {
     action: 'add' | 'remove';
   }>): Promise<{ success: boolean; message: string; results?: any }> {
     loading.update(l => ({ ...l, saving: true }));
-    
+
     try {
       const result = await roleApi.bulkUpdateUserRoles(updates);
-      
+
       // Invalidate caches after bulk update
       this.invalidateStatsCache();
-      
+
       return {
         success: true,
         message: result.message || 'Bulk update completed successfully',
@@ -790,7 +797,7 @@ export const permissionActions = {
   async loadAuditLogs(filters?: any) {
     loading.update(l => ({ ...l, auditLogs: true }));
     error.update(e => ({ ...e, auditLogs: null }));
-    
+
     try {
       const logs = await permissionApi.getPermissionAuditLogs(filters);
       auditLogs.set(logs);
@@ -805,7 +812,7 @@ export const permissionActions = {
   async loadHealthStatus() {
     loading.update(l => ({ ...l, health: true }));
     error.update(e => ({ ...e, health: null }));
-    
+
     try {
       const health = await permissionApi.healthCheck();
       healthStatus.set(health);
@@ -821,20 +828,20 @@ export const permissionActions = {
   async checkPermissionConflicts(): Promise<PermissionConflictResponse> {
     loading.update(l => ({ ...l, conflictCheck: true }));
     error.update(e => ({ ...e, conflictCheck: null }));
-    
+
     try {
       const $permissionStructure = get(permissionStructure);
       const $selectedPermissionIds = get(selectedPermissionIds);
-      
+
       if (!$permissionStructure) {
         return { conflicts: [], has_conflicts: false, recommendations: [] };
       }
-      
+
       const conflicts = PermissionUtils.detectPermissionConflicts(
-        $selectedPermissionIds, 
+        $selectedPermissionIds,
         $permissionStructure
       );
-      
+
       permissionConflicts.set(conflicts);
       return conflicts;
     } catch (err) {
@@ -862,9 +869,9 @@ export const permissionActions = {
   expandAllNodes() {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
-    
+
     const allNodeIds = new Set<string>();
-    
+
     $permissionStructure.modules.forEach(module => {
       allNodeIds.add(module.id);
       module.menus.forEach(menu => {
@@ -874,7 +881,7 @@ export const permissionActions = {
         });
       });
     });
-    
+
     treeSelection.update(ts => ({ ...ts, expandedNodes: allNodeIds }));
   },
 
@@ -887,17 +894,17 @@ export const permissionActions = {
     treeSelection.update(ts => {
       const newSelectedPermissions = new Map(ts.selectedPermissions);
       const cardPermissions = newSelectedPermissions.get(cardId) || new Set<string>();
-      
+
       if (cardPermissions.has(permissionId)) {
         cardPermissions.delete(permissionId);
       } else {
         cardPermissions.add(permissionId);
       }
-      
+
       newSelectedPermissions.set(cardId, cardPermissions);
       return { ...ts, selectedPermissions: newSelectedPermissions };
     });
-    
+
     // Auto-check for conflicts
     this.checkPermissionConflicts();
   },
@@ -908,7 +915,7 @@ export const permissionActions = {
       newSelectedPermissions.set(cardId, new Set(permissionIds));
       return { ...ts, selectedPermissions: newSelectedPermissions };
     });
-    
+
     this.checkPermissionConflicts();
   },
 
@@ -918,16 +925,16 @@ export const permissionActions = {
       newSelectedPermissions.delete(cardId);
       return { ...ts, selectedPermissions: newSelectedPermissions };
     });
-    
+
     this.checkPermissionConflicts();
   },
 
   selectAllPermissions() {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
-    
+
     const newSelectedPermissions = new Map<string, Set<string>>();
-    
+
     $permissionStructure.modules.forEach(module => {
       module.menus.forEach(menu => {
         menu.cards.forEach(card => {
@@ -936,7 +943,7 @@ export const permissionActions = {
         });
       });
     });
-    
+
     treeSelection.update(ts => ({ ...ts, selectedPermissions: newSelectedPermissions }));
     this.checkPermissionConflicts();
   },
@@ -954,7 +961,7 @@ export const permissionActions = {
   // Validation
   async validatePermissions(parentPermissionIds: string[], childPermissionIds: string[]) {
     loading.update(l => ({ ...l, validation: true }));
-    
+
     try {
       return await permissionApi.validateChildPermissions(parentPermissionIds, childPermissionIds);
     } finally {
@@ -979,7 +986,7 @@ export const permissionActions = {
   togglePermissionGlobally(permissionId: string) {
     const $selectedPermissionIds = get(selectedPermissionIds);
     const isSelected = $selectedPermissionIds.includes(permissionId);
-    
+
     if (isSelected) {
       permissionActions.deselectPermissionEverywhere(permissionId);
     } else {
@@ -994,10 +1001,10 @@ export const permissionActions = {
   selectPermissionEverywhere(permissionId: string) {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
-    
+
     treeSelection.update(ts => {
       const newSelectedPermissions = new Map(ts.selectedPermissions);
-      
+
       // Find and select the permission in all modules/menus/cards
       $permissionStructure.modules.forEach(module => {
         module.menus.forEach(menu => {
@@ -1012,7 +1019,7 @@ export const permissionActions = {
               }
             });
           }
-          
+
           // Check card permissions
           menu.cards.forEach(card => {
             card.permissions.forEach(perm => {
@@ -1025,20 +1032,20 @@ export const permissionActions = {
           });
         });
       });
-      
+
       return { ...ts, selectedPermissions: newSelectedPermissions };
     });
-    
+
     this.checkPermissionConflicts();
   },
 
   deselectPermissionEverywhere(permissionId: string) {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
-    
+
     treeSelection.update(ts => {
       const newSelectedPermissions = new Map(ts.selectedPermissions);
-      
+
       // Find and deselect the permission in all modules/menus/cards
       $permissionStructure.modules.forEach(module => {
         module.menus.forEach(menu => {
@@ -1055,7 +1062,7 @@ export const permissionActions = {
               }
             }
           }
-          
+
           // Check card permissions
           menu.cards.forEach(card => {
             const currentCardPermissions = newSelectedPermissions.get(card.id);
@@ -1070,10 +1077,10 @@ export const permissionActions = {
           });
         });
       });
-      
+
       return { ...ts, selectedPermissions: newSelectedPermissions };
     });
-    
+
     this.checkPermissionConflicts();
   },
 
@@ -1081,12 +1088,12 @@ export const permissionActions = {
   toggleModuleSelectionEnhanced(module: any) {
     const $permissionStructure = get(permissionStructure);
     if (!$permissionStructure) return;
-    
+
     const allPermissions = getAllPermissionsInModule(module);
-    const isFullySelected = allPermissions.every(perm => 
+    const isFullySelected = allPermissions.every(perm =>
       get(selectedPermissionIds).includes(perm.id)
     );
-    
+
     if (isFullySelected) {
       allPermissions.forEach(perm => {
         permissionActions.deselectPermissionEverywhere(perm.id);
@@ -1100,10 +1107,10 @@ export const permissionActions = {
 
   toggleMenuSelectionEnhanced(menu: any) {
     const allPermissions = getAllPermissionsInMenu(menu);
-    const isFullySelected = allPermissions.every(perm => 
+    const isFullySelected = allPermissions.every(perm =>
       get(selectedPermissionIds).includes(perm.id)
     );
-    
+
     if (isFullySelected) {
       allPermissions.forEach(perm => {
         permissionActions.deselectPermissionEverywhere(perm.id);
@@ -1116,10 +1123,10 @@ export const permissionActions = {
   },
 
   toggleCardSelectionEnhanced(card: any) {
-    const isFullySelected = card.permissions.every(perm => 
+    const isFullySelected = card.permissions.every(perm =>
       get(selectedPermissionIds).includes(perm.id)
     );
-    
+
     if (isFullySelected) {
       card.permissions.forEach((perm: any) => {
         permissionActions.deselectPermissionEverywhere(perm.id);
@@ -1141,7 +1148,7 @@ export const permissionActions = {
   getCacheStats() {
     const $lastFetched = get(lastFetched);
     const now = Date.now();
-    
+
     return {
       structure: $lastFetched.structure > 0 ? now - $lastFetched.structure : 'never',
       roles: $lastFetched.roles > 0 ? now - $lastFetched.roles : 'never',
@@ -1158,11 +1165,11 @@ export const permissionActions = {
     if (err instanceof Error) {
       return err.message;
     }
-    
+
     if (typeof err === 'object' && err !== null && 'message' in err) {
       return (err as any).message;
     }
-    
+
     return defaultMessage;
   },
 

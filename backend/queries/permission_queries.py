@@ -452,6 +452,9 @@ SELECT
     ) as permission_structure
 """
 
+#---------------------------------------#
+#  ROLES RELATED QUERIES - START        #
+#---------------------------------------#
 ORGANIZATION_ROLES_QUERY = """
 WITH user_organization AS (
     SELECT org_id 
@@ -489,7 +492,7 @@ role_permission_counts AS (
         COUNT(DISTINCT rp.structure_id) AS permission_count,
         JSON_AGG(
             JSON_BUILD_OBJECT(
-                'permissstruct_id', rp.structure_id,
+                'permissstruct_id', rp.structure_id::text,
                 'granted_action_key', rp.granted_actions
             )
         ) AS permission_ids
@@ -583,8 +586,84 @@ SELECT json_build_object(
 ) AS roles_data
 """
 
+GET_USER_ORGANIZATION = """
+SELECT u.org_id, o.name AS org_name, o.status AS org_status
+FROM users u
+JOIN organizations o ON u.org_id = o.org_id
+WHERE u.user_id = %(user_id)s
+"""
 
-ORGANIZATION_USERS_QUERY ="""
+VERIFY_ROLE_ORGANIZATION = """
+SELECT role_id
+FROM roles
+WHERE role_id = %(role_id)s
+  AND org_id = %(org_id)s
+  AND is_active = TRUE
+"""
+
+CHECK_ROLE_NAME_EXISTS = """
+SELECT role_id
+FROM roles
+WHERE org_id = %(org_id)s
+  AND display_name = %(display_name)s
+  AND is_active = TRUE
+"""
+
+CREATE_NEW_ROLE = """
+INSERT INTO roles (org_id, display_name, description, is_system_role, is_template, created_by)
+VALUES (%(org_id)s, %(display_name)s, %(description)s, FALSE, FALSE, %(created_by)s)
+RETURNING role_id
+"""
+
+UPDATE_ROLE_METADATA = """
+UPDATE roles
+SET {update_fields},
+    updated_at = CURRENT_TIMESTAMP,
+    updated_by = %(updated_by)s
+WHERE role_id = %(role_id)s
+"""
+
+UPSERT_ROLE_PERMISSION = """
+INSERT INTO role_permissions (role_id, structure_id, granted_actions, status, created_at, updated_at)
+VALUES (%(role_id)s, %(structure_id)s, %(granted_actions)s::jsonb, 'AC', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (role_id, structure_id) 
+DO UPDATE SET 
+    granted_actions = EXCLUDED.granted_actions,
+    updated_at = CURRENT_TIMESTAMP,
+    status = 'AC'
+"""
+
+REMOVE_OLD_PERMISSIONS = """
+DELETE FROM role_permissions
+WHERE role_id = %(role_id)s
+  AND structure_id NOT IN %(structure_ids)s
+"""
+
+# Soft delete a role (mark as inactive)
+SOFT_DELETE_ROLE = """
+UPDATE roles 
+SET 
+    is_active = FALSE, 
+    status = 'IN',
+    updated_at = CURRENT_TIMESTAMP,
+    updated_by = %(updated_by)s
+WHERE role_id = %(role_id)s
+  AND org_id = %(org_id)s
+  AND is_active = TRUE
+  AND is_system_role = FALSE  -- Don't allow deleting system roles
+RETURNING role_id
+"""
+
+#---------------------------------------#
+#  ROLES RELATED QUERIES - END          #
+#---------------------------------------#
+
+
+#---------------------------------------#
+#  USERS RELATED QUERIES - START        #
+#---------------------------------------#
+"""
+ORGANIZATION_USERS_QUERY =
 WITH current_org AS (
     SELECT org_id
     FROM users
@@ -661,6 +740,9 @@ SELECT json_build_object(
 ) AS users_data
 """
 
+#---------------------------------------#
+#  USERS RELATED QUERIES - END          #
+#---------------------------------------#
 
 
 
@@ -1081,4 +1163,322 @@ LEFT JOIN user_roles ur ON ur.role_id = r.role_id AND ur.organization_id = r.org
 WHERE rt.template_key = %s
   AND rt.is_active = true
 GROUP BY rt.template_key
+"""
+
+
+"""
+User-related SQL queries following the same pattern as permission queries.
+"""
+
+# ======================================================
+# USER ORGANIZATION & ACCESS
+# ======================================================
+
+GET_USER_ORGANIZATION = """
+SELECT u.org_id, o.name AS org_name, o.status AS org_status
+FROM users u
+JOIN organizations o ON u.org_id = o.org_id
+WHERE u.user_id = %(user_id)s
+"""
+
+VERIFY_USER_ACCESS = """
+SELECT user_id 
+FROM users 
+WHERE user_id = %(user_id)s 
+  AND org_id = %(org_id)s
+  AND status = 'AC'
+"""
+
+VERIFY_USER_EMAIL_EXISTS = """
+SELECT user_id 
+FROM users 
+WHERE email = %(email)s 
+  AND org_id = %(org_id)s
+  AND status = 'AC'
+  {exclude_clause}
+"""
+
+# ======================================================
+# USER LISTING & SEARCH
+# ======================================================
+
+
+ORGANIZATION_USERS_QUERY = """
+WITH current_org AS (
+    SELECT org_id
+    FROM users
+    WHERE user_id = %(current_user_id)s
+),
+user_base AS (
+    SELECT 
+        u.user_id,
+        u.uid,
+        u.email,
+        u.display_name,
+        u.org_id,
+        u.email_verified,
+        u.created_at,
+        u.updated_at,
+        u.status,
+        u.department,
+        u.location,
+        u.status_effective_from,
+        u.status_effective_to
+    FROM users u
+    WHERE u.org_id = (SELECT org_id FROM current_org)
+      AND u.status = 'AC'
+),
+user_roles AS (
+    SELECT 
+        ur.user_id,
+        COALESCE(
+            json_agg(ur.role_id::text ORDER BY ur.role_id),
+            '[]'::json
+        ) AS roles
+    FROM user_roles ur
+    WHERE ur.org_id = (SELECT org_id FROM current_org)
+    GROUP BY ur.user_id
+),
+total_count AS (
+    SELECT COUNT(*) AS total
+    FROM user_base
+),
+paged_users AS (
+    SELECT *
+    FROM user_base u
+    ORDER BY u.created_at DESC
+    OFFSET %(offset)s LIMIT %(limit)s
+)
+SELECT json_build_object(
+    'items', (
+        SELECT json_agg(
+            json_build_object(
+                'user_id', pu.user_id,
+                'uid', pu.uid,
+                'email', pu.email,
+                'display_name', pu.display_name,
+                'org_id', pu.org_id,
+                'email_verified', pu.email_verified,
+                'created_at', pu.created_at,
+                'updated_at', pu.updated_at,
+                'status', pu.status,
+                'department', pu.department,
+                'location', pu.location,
+                'status_effective_from', pu.status_effective_from,
+                'status_effective_to', pu.status_effective_to,
+                'roles', COALESCE(ur.roles, '[]'::json)
+            )
+        )
+        FROM paged_users pu
+        LEFT JOIN user_roles ur ON pu.user_id = ur.user_id
+    ),
+    'total', (SELECT total FROM total_count),
+    'offset', %(offset)s,
+    'limit', %(limit)s,
+    'org_id', (SELECT org_id FROM current_org),
+    'version', json_build_array(
+        json_build_object(
+            'table_name', 'users',
+            'table_version', (
+                SELECT MAX(table_version)
+                FROM tableversion
+                WHERE table_name = 'users'
+                  AND org_id = (SELECT org_id FROM current_org)
+            )
+        )
+    )
+) AS users_data
+"""
+
+GET_USER_DETAILS = """
+SELECT 
+    u.user_id,
+    u.uid,
+    u.email,
+    u.display_name,
+    u.org_id,
+    u.email_verified,
+    u.created_at,
+    u.updated_at,
+    u.status,
+    u.department,
+    u.location,
+    u.status_effective_from,
+    u.status_effective_to,
+    COALESCE(
+        json_agg(ur.role_id::text ORDER BY ur.role_id),
+        '[]'::json
+    ) AS roles,
+    o.name AS organization_name
+FROM users u
+LEFT JOIN user_roles ur ON ur.user_id = u.user_id AND ur.org_id = u.org_id
+JOIN organizations o ON u.org_id = o.org_id
+WHERE u.user_id = %(user_id)s
+  AND u.org_id = %(org_id)s
+  AND u.status = 'AC'
+GROUP BY u.user_id, o.name
+"""
+
+SEARCH_USERS_COUNT = """
+SELECT COUNT(*) as total
+FROM users u
+WHERE u.org_id = %(org_id)s
+  AND u.status = 'AC'
+  AND (
+      u.display_name ILIKE %(search_pattern)s
+      OR u.email ILIKE %(search_pattern)s
+      OR u.uid ILIKE %(search_pattern)s
+  )
+"""
+
+SEARCH_USERS = """
+SELECT 
+    u.user_id,
+    u.uid,
+    u.email,
+    u.display_name,
+    u.org_id,
+    u.email_verified,
+    u.created_at,
+    u.updated_at,
+    u.status,
+    u.department,
+    u.location,
+    COALESCE(
+        json_agg(ur.role_id::text ORDER BY ur.role_id),
+        '[]'::json
+    ) AS roles
+FROM users u
+LEFT JOIN user_roles ur ON ur.user_id = u.user_id AND ur.org_id = u.org_id
+WHERE u.org_id = %(org_id)s
+  AND u.status = 'AC'
+  AND (
+      u.display_name ILIKE %(search_pattern)s
+      OR u.email ILIKE %(search_pattern)s
+      OR u.uid ILIKE %(search_pattern)s
+  )
+GROUP BY u.user_id
+ORDER BY u.display_name
+OFFSET %(offset)s LIMIT %(limit)s
+"""
+
+# ======================================================
+# USER CREATE
+# ======================================================
+
+CREATE_USER = """
+INSERT INTO users (
+    uid,
+    email,
+    display_name,
+    org_id,
+    department,
+    location,
+    status,
+    status_effective_from,
+    status_effective_to,
+    email_verified,
+    created_at,
+    updated_at
+) VALUES (
+    %(uid)s,
+    %(email)s,
+    %(display_name)s,
+    %(org_id)s,
+    %(department)s,
+    %(location)s,
+    %(status)s,
+    %(status_effective_from)s,
+    %(status_effective_to)s,
+    %(email_verified)s,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+)
+RETURNING user_id
+"""
+
+# ======================================================
+# USER UPDATE
+# ======================================================
+
+UPDATE_USER_FIELDS = """
+UPDATE users 
+SET {update_fields},
+    updated_at = CURRENT_TIMESTAMP
+WHERE user_id = %(user_id)s
+  AND org_id = %(org_id)s
+  AND status = 'AC'
+RETURNING user_id
+"""
+
+# ======================================================
+# USER DELETE
+# ======================================================
+
+SOFT_DELETE_USER = """
+UPDATE users 
+SET 
+    status = 'DE',
+    updated_at = CURRENT_TIMESTAMP
+WHERE user_id = %(user_id)s
+  AND org_id = %(org_id)s
+  AND status != 'DE'
+RETURNING user_id
+"""
+
+HARD_DELETE_USER = """
+DELETE FROM users 
+WHERE user_id = %(user_id)s
+  AND org_id = %(org_id)s
+RETURNING user_id
+"""
+
+# ======================================================
+# USER ROLES MANAGEMENT
+# ======================================================
+
+DELETE_USER_ROLES = """
+DELETE FROM user_roles 
+WHERE user_id = %(user_id)s 
+  AND org_id = %(org_id)s
+"""
+
+INSERT_USER_ROLE = """
+INSERT INTO user_roles (user_id, role_id, org_id, updated_by, updated_at)
+VALUES (%(user_id)s, %(role_id)s, %(org_id)s, %(assigned_by)s, CURRENT_TIMESTAMP)
+ON CONFLICT (user_id, role_id, org_id) DO UPDATE 
+SET updated_by = EXCLUDED.updated_by,
+    updated_at = CURRENT_TIMESTAMP
+"""
+
+VERIFY_ROLE_ACCESS = """
+SELECT role_id 
+FROM roles 
+WHERE role_id = %(role_id)s 
+  AND org_id = %(org_id)s
+  AND is_active = TRUE
+"""
+
+# ======================================================
+# AUDIT LOGGING
+# ======================================================
+
+LOG_USER_ACTION = """
+INSERT INTO permission_audit (user_id, action, performed_by, details)
+VALUES (%(user_id)s, %(action)s, %(performed_by)s, %(details)s)
+"""
+
+# ======================================================
+# POWER ANALYSIS
+# ======================================================
+
+GET_ROLE_POWER_ANALYSIS = """
+SELECT 
+    COALESCE(MAX(ad.power_level), 0) as max_power,
+    COUNT(DISTINCT rp.structure_id) as permission_count
+FROM role_permissions rp
+JOIN permission_structures ps ON rp.structure_id = ps.permissstruct_id
+CROSS JOIN LATERAL jsonb_array_elements_text(ps.allowed_actions) as action_val
+JOIN action_definitions ad ON ad.action_key = action_val
+WHERE rp.role_id = %(role_id)s AND rp.status = 'AC'
 """

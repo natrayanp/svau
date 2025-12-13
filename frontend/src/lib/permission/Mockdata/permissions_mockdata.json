@@ -1,177 +1,177 @@
 {
   "permissionStructure": {
-  "modules": [
-    {
-      "id": "mod_1",
-      "record_type": "module",
-      "key": "user_management",
-      "name": "User Management",
-      "description": "Manage users, roles, and permissions",
-      "icon": "👥",
-      "color": "#3B82F6",
-      "display_order": 1,
-      "allowed_actions": [
-        {
-          "action_key": "module_view",
-          "display_name": "View Module",
-          "power_level": 10,
-          "category": "access"
-        },
-        {
-          "action_key": "module_configure",
-          "display_name": "Configure Module",
-          "power_level": 80,
-          "category": "administration"
-        }
-      ],
-      "menus": [
-        {
-          "id": "menu_1",
-          "record_type": "menu",
-          "key": "users",
-          "name": "Users",
-          "description": "Manage system users",
-          "display_order": 1,
-          "module_id": "mod_1",
-          "allowed_actions": [
-            {
-              "action_key": "menu_access",
-              "display_name": "Access Menu",
-              "power_level": 15,
-              "category": "access"
-            }
-          ],
-          "cards": [
-            {
-              "id": "card_1",
-              "record_type": "card",
-              "key": "user_list",
-              "name": "User List",
-              "description": "View and manage all users",
-              "display_order": 1,
-              "menu_id": "menu_1",
-              "allowed_actions": [
-                {
-                  "action_key": "card_view",
-                  "display_name": "View Card",
-                  "power_level": 15,
-                  "category": "access"
-                }
-              ]
-            },
-            {
-              "id": "card_2",
-              "record_type": "card",
-              "key": "user_roles",
-              "name": "User Roles",
-              "description": "Manage user roles and permissions",
-              "display_order": 2,
-              "menu_id": "menu_1",
-              "allowed_actions": [
-                {
-                  "action_key": "card_configure",
-                  "display_name": "Configure Roles",
-                  "power_level": 70,
-                  "category": "administration"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "menu_2",
-          "record_type": "menu",
-          "key": "roles",
-          "name": "Roles & Permissions",
-          "description": "Manage roles and permissions",
-          "display_order": 2,
-          "module_id": "mod_1",
-          "allowed_actions": [
-            {
-              "action_key": "menu_admin",
-              "display_name": "Admin Access",
-              "power_level": 90,
-              "category": "administration"
-            }
-          ],
-          "cards": [
-            {
-              "id": "card_3",
-              "record_type": "card",
-              "key": "role_management",
-              "name": "Role Management",
-              "description": "Create and manage roles",
-              "display_order": 1,
-              "menu_id": "menu_2",
-              "allowed_actions": [
-                {
-                  "action_key": "card_manage",
-                  "display_name": "Manage Roles",
-                  "power_level": 80,
-                  "category": "administration"
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mod_2",
-      "record_type": "module",
-      "key": "content_management",
-      "name": "Content Management",
-      "description": "Manage website content and pages",
-      "icon": "📄",
-      "color": "#10B981",
-      "display_order": 2,
-      "allowed_actions": [
-        {
-          "action_key": "module_access",
-          "display_name": "Access Content",
-          "power_level": 15,
-          "category": "access"
-        }
-      ],
-      "menus": [
-        {
-          "id": "menu_3",
-          "record_type": "menu",
-          "key": "pages",
-          "name": "Pages",
-          "description": "Manage website pages",
-          "display_order": 1,
-          "module_id": "mod_2",
-          "allowed_actions": [
-            {
-              "action_key": "menu_edit",
-              "display_name": "Edit Pages",
-              "power_level": 40,
-              "category": "content"
-            }
-          ],
-          "cards": [
-            {
-              "id": "card_4",
-              "record_type": "card",
-              "key": "page_manager",
-              "name": "Page Manager",
-              "description": "Create and edit website pages",
-              "display_order": 1,
-              "menu_id": "menu_3",
-              "allowed_actions": [
-                {
-                  "action_key": "card_publish",
-                  "display_name": "Publish Content",
-                  "power_level": 60,
-                  "category": "publishing"
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }    
+    "modules": [
+      {
+        "id": "mod_1",
+        "record_type": "module",
+        "key": "user_management",
+        "name": "User Management",
+        "description": "Manage users, roles, and permissions",
+        "icon": "👥",
+        "color": "#3B82F6",
+        "display_order": 1,
+        "allowed_actions": [
+          {
+            "action_key": "module_view",
+            "display_name": "View Module",
+            "power_level": 10,
+            "category": "access"
+          },
+          {
+            "action_key": "module_configure",
+            "display_name": "Configure Module",
+            "power_level": 80,
+            "category": "administration"
+          }
+        ],
+        "menus": [
+          {
+            "id": "menu_1",
+            "record_type": "menu",
+            "key": "users",
+            "name": "Users",
+            "description": "Manage system users",
+            "display_order": 1,
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_access",
+                "display_name": "Access Menu",
+                "power_level": 15,
+                "category": "access"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_1",
+                "record_type": "card",
+                "key": "user_list",
+                "name": "User List",
+                "description": "View and manage all users",
+                "display_order": 1,
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_view",
+                    "display_name": "View Card",
+                    "power_level": 15,
+                    "category": "access"
+                  }
+                ]
+              },
+              {
+                "id": "card_2",
+                "record_type": "card",
+                "key": "user_roles",
+                "name": "User Roles",
+                "description": "Manage user roles and permissions",
+                "display_order": 2,
+                "menu_id": "menu_1",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_configure",
+                    "display_name": "Configure Roles",
+                    "power_level": 70,
+                    "category": "administration"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "menu_2",
+            "record_type": "menu",
+            "key": "roles",
+            "name": "Roles & Permissions",
+            "description": "Manage roles and permissions",
+            "display_order": 2,
+            "module_id": "mod_1",
+            "allowed_actions": [
+              {
+                "action_key": "menu_admin",
+                "display_name": "Admin Access",
+                "power_level": 90,
+                "category": "administration"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_3",
+                "record_type": "card",
+                "key": "role_management",
+                "name": "Role Management",
+                "description": "Create and manage roles",
+                "display_order": 1,
+                "menu_id": "menu_2",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_manage",
+                    "display_name": "Manage Roles",
+                    "power_level": 80,
+                    "category": "administration"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "mod_2",
+        "record_type": "module",
+        "key": "content_management",
+        "name": "Content Management",
+        "description": "Manage website content and pages",
+        "icon": "📄",
+        "color": "#10B981",
+        "display_order": 2,
+        "allowed_actions": [
+          {
+            "action_key": "module_access",
+            "display_name": "Access Content",
+            "power_level": 15,
+            "category": "access"
+          }
+        ],
+        "menus": [
+          {
+            "id": "menu_3",
+            "record_type": "menu",
+            "key": "pages",
+            "name": "Pages",
+            "description": "Manage website pages",
+            "display_order": 1,
+            "module_id": "mod_2",
+            "allowed_actions": [
+              {
+                "action_key": "menu_edit",
+                "display_name": "Edit Pages",
+                "power_level": 40,
+                "category": "content"
+              }
+            ],
+            "cards": [
+              {
+                "id": "card_4",
+                "record_type": "card",
+                "key": "page_manager",
+                "name": "Page Manager",
+                "description": "Create and edit website pages",
+                "display_order": 1,
+                "menu_id": "menu_3",
+                "allowed_actions": [
+                  {
+                    "action_key": "card_publish",
+                    "display_name": "Publish Content",
+                    "power_level": 60,
+                    "category": "publishing"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
     ],
     "metadata": {
       "total_modules": 2,
@@ -184,36 +184,116 @@
   "userPermissions": {
     "1": {
       "user_id": 1,
-      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"]
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5004",
+        "5005",
+        "5006",
+        "5007",
+        "5008",
+        "6001",
+        "6002",
+        "6003",
+        "6004",
+        "6005",
+        "7001",
+        "7002",
+        "8001",
+        "8002",
+        "8003",
+        "8004"
+      ]
     },
     "2": {
       "user_id": 2,
-      "permission_ids": ["5001", "5002", "5003", "5007", "6001", "8001", "8002"]
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5007",
+        "6001",
+        "8001",
+        "8002"
+      ]
     },
     "3": {
       "user_id": 3,
-      "permission_ids": ["5001", "6001", "8001"]
+      "permission_ids": [
+        "5001",
+        "6001",
+        "8001"
+      ]
     }
   },
   "rolePermissions": {
     "basic": {
       "role": "basic",
-      "permission_ids": ["5001", "6001", "8001"],
+      "permission_ids": [
+        "5001",
+        "6001",
+        "8001"
+      ],
       "permission_count": 3
     },
     "creator": {
       "role": "creator",
-      "permission_ids": ["5001", "5002", "5003", "5007", "6001", "8001", "8002"],
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5007",
+        "6001",
+        "8001",
+        "8002"
+      ],
       "permission_count": 7
     },
     "moderator": {
       "role": "moderator",
-      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5004",
+        "5005",
+        "5006",
+        "5007",
+        "5008",
+        "6001",
+        "6002",
+        "6004",
+        "7001",
+        "8001",
+        "8002",
+        "8003"
+      ],
       "permission_count": 15
     },
     "admin": {
       "role": "admin",
-      "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5004",
+        "5005",
+        "5006",
+        "5007",
+        "5008",
+        "6001",
+        "6002",
+        "6003",
+        "6004",
+        "6005",
+        "7001",
+        "7002",
+        "8001",
+        "8002",
+        "8003",
+        "8004"
+      ],
       "permission_count": 19
     }
   },
@@ -229,7 +309,9 @@
       "permissions": [
         {
           "permissstruct_id": "mod_1",
-          "granted_action_key": ["module_view"]
+          "granted_action_key": [
+            "module_view"
+          ]
         },
         {
           "permissstruct_id": "menu_1",
@@ -237,31 +319,45 @@
         },
         {
           "permissstruct_id": "card_1",
-          "granted_action_key": ["card_view"]
+          "granted_action_key": [
+            "card_view"
+          ]
         },
         {
           "permissstruct_id": "card_2",
-          "granted_action_key": ["card_configure"]
+          "granted_action_key": [
+            "card_configure"
+          ]
         },
         {
           "permissstruct_id": "menu_2",
-          "granted_action_key": ["menu_admin"]
+          "granted_action_key": [
+            "menu_admin"
+          ]
         },
         {
           "permissstruct_id": "card_3",
-          "granted_action_key": ["card_manage"]
+          "granted_action_key": [
+            "card_manage"
+          ]
         },
         {
           "permissstruct_id": "mod_2",
-          "granted_action_key": ["module_access"]
+          "granted_action_key": [
+            "module_access"
+          ]
         },
         {
           "permissstruct_id": "menu_3",
-          "granted_action_key": ["menu_edit"]
+          "granted_action_key": [
+            "menu_edit"
+          ]
         },
         {
           "permissstruct_id": "card_4",
-          "granted_action_key": ["card_publish"]
+          "granted_action_key": [
+            "card_publish"
+          ]
         }
       ],
       "power_level": 100,
@@ -279,31 +375,46 @@
       "permissions": [
         {
           "permissstruct_id": "mod_1",
-          "granted_action_key": ["module_view", "module_configure"]
+          "granted_action_key": [
+            "module_view",
+            "module_configure"
+          ]
         },
         {
           "permissstruct_id": "menu_1",
-          "granted_action_key": ["menu_access"]
+          "granted_action_key": [
+            "menu_access"
+          ]
         },
         {
           "permissstruct_id": "card_1",
-          "granted_action_key": ["card_view"]
+          "granted_action_key": [
+            "card_view"
+          ]
         },
         {
           "permissstruct_id": "card_2",
-          "granted_action_key": ["card_configure"]
+          "granted_action_key": [
+            "card_configure"
+          ]
         },
         {
           "permissstruct_id": "menu_2",
-          "granted_action_key": ["menu_admin"]
+          "granted_action_key": [
+            "menu_admin"
+          ]
         },
         {
           "permissstruct_id": "card_3",
-          "granted_action_key": ["card_manage"]
+          "granted_action_key": [
+            "card_manage"
+          ]
         },
         {
           "permissstruct_id": "mod_2",
-          "granted_action_key": ["module_view"] 
+          "granted_action_key": [
+            "module_view"
+          ]
         }
       ],
       "power_level": 85,
@@ -321,19 +432,27 @@
       "permissions": [
         {
           "permissstruct_id": "mod_2",
-          "granted_action_key": ["module_access"]
+          "granted_action_key": [
+            "module_access"
+          ]
         },
         {
           "permissstruct_id": "menu_3",
-          "granted_action_key": ["menu_edit"]
+          "granted_action_key": [
+            "menu_edit"
+          ]
         },
         {
           "permissstruct_id": "card_4",
-          "granted_action_key": ["card_publish"]
+          "granted_action_key": [
+            "card_publish"
+          ]
         },
         {
           "permissstruct_id": "mod_1",
-          "granted_action_key": ["module_view"]  
+          "granted_action_key": [
+            "module_view"
+          ]
         }
       ],
       "power_level": 70,
@@ -351,15 +470,21 @@
       "permissions": [
         {
           "permissstruct_id": "mod_1",
-          "granted_action_key": ["module_view"]
+          "granted_action_key": [
+            "module_view"
+          ]
         },
         {
           "permissstruct_id": "mod_2",
-          "granted_action_key": ["module_access"]
+          "granted_action_key": [
+            "module_access"
+          ]
         },
         {
           "permissstruct_id": "card_1",
-          "granted_action_key": ["card_view"]  
+          "granted_action_key": [
+            "card_view"
+          ]
         }
       ],
       "power_level": 20,
@@ -368,51 +493,98 @@
     }
   ],
   "roleTemplates": {
-  "basic": {
-    "template_key": "basic",
-    "template_name": "Basic",
-    "description": "Basic user template with view-only permissions",
-    "permission_ids": ["5001", "6001", "8001"],
-    "power_level": 10,
-    "is_system_template": true,
-    "roles_using_count": 120,
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-15T00:00:00Z"
+    "basic": {
+      "template_key": "basic",
+      "template_name": "Basic",
+      "description": "Basic user template with view-only permissions",
+      "permission_ids": [
+        "5001",
+        "6001",
+        "8001"
+      ],
+      "power_level": 10,
+      "is_system_template": true,
+      "roles_using_count": 120,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    "content_creator": {
+      "template_key": "content_creator",
+      "template_name": "Content Creator",
+      "description": "Template for content creation roles",
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5007",
+        "8001",
+        "8002"
+      ],
+      "power_level": 30,
+      "is_system_template": true,
+      "roles_using_count": 25,
+      "created_at": "2024-01-02T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    "moderator": {
+      "template_key": "moderator",
+      "template_name": "Moderator",
+      "description": "Template for content moderation roles",
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5004",
+        "5005",
+        "5006",
+        "5007",
+        "5008",
+        "6001",
+        "6002",
+        "6004",
+        "7001",
+        "8001",
+        "8002",
+        "8003"
+      ],
+      "power_level": 70,
+      "is_system_template": true,
+      "roles_using_count": 8,
+      "created_at": "2024-01-03T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    },
+    "administrator": {
+      "template_key": "administrator",
+      "template_name": "Administrator",
+      "description": "Full system administrator template",
+      "permission_ids": [
+        "5001",
+        "5002",
+        "5003",
+        "5004",
+        "5005",
+        "5006",
+        "5007",
+        "5008",
+        "6001",
+        "6002",
+        "6003",
+        "6004",
+        "6005",
+        "7001",
+        "7002",
+        "8001",
+        "8002",
+        "8003",
+        "8004"
+      ],
+      "power_level": 100,
+      "is_system_template": true,
+      "roles_using_count": 3,
+      "created_at": "2024-01-04T00:00:00Z",
+      "updated_at": "2024-01-15T00:00:00Z"
+    }
   },
-  "content_creator": {
-    "template_key": "content_creator",
-    "template_name": "Content Creator",
-    "description": "Template for content creation roles",
-    "permission_ids": ["5001", "5002", "5003", "5007", "8001", "8002"],
-    "power_level": 30,
-    "is_system_template": true,
-    "roles_using_count": 25,
-    "created_at": "2024-01-02T00:00:00Z",
-    "updated_at": "2024-01-15T00:00:00Z"
-  },
-  "moderator": {
-    "template_key": "moderator",
-    "template_name": "Moderator",
-    "description": "Template for content moderation roles",
-    "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6004", "7001", "8001", "8002", "8003"],
-    "power_level": 70,
-    "is_system_template": true,
-    "roles_using_count": 8,
-    "created_at": "2024-01-03T00:00:00Z",
-    "updated_at": "2024-01-15T00:00:00Z"
-  },
-  "administrator": {
-    "template_key": "administrator",
-    "template_name": "Administrator",
-    "description": "Full system administrator template",
-    "permission_ids": ["5001", "5002", "5003", "5004", "5005", "5006", "5007", "5008", "6001", "6002", "6003", "6004", "6005", "7001", "7002", "8001", "8002", "8003", "8004"],
-    "power_level": 100,
-    "is_system_template": true,
-    "roles_using_count": 3,
-    "created_at": "2024-01-04T00:00:00Z",
-    "updated_at": "2024-01-15T00:00:00Z"
-  }
-},
   "users": [
     {
       "user_id": "1",
@@ -423,7 +595,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:00:00Z",
       "updated_at": "2024-01-01T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "admin"
+      ]
     },
     {
       "user_id": "2",
@@ -434,7 +608,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:05:00Z",
       "updated_at": "2024-01-01T09:05:00Z",
-      "roles": ["creator"]
+      "roles": [
+        "creator"
+      ]
     },
     {
       "user_id": "3",
@@ -445,7 +621,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:10:00Z",
       "updated_at": "2024-01-01T09:10:00Z",
-      "roles": ["manager"]
+      "roles": [
+        "manager"
+      ]
     },
     {
       "user_id": "4",
@@ -456,7 +634,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:15:00Z",
       "updated_at": "2024-01-01T09:15:00Z",
-      "roles": ["viewer"]
+      "roles": [
+        "viewer"
+      ]
     },
     {
       "user_id": "5",
@@ -467,7 +647,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:00:00Z",
       "updated_at": "2024-01-02T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "admin"
+      ]
     },
     {
       "user_id": "6",
@@ -478,7 +660,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:05:00Z",
       "updated_at": "2024-01-02T09:05:00Z",
-      "roles": ["teacher"]
+      "roles": [
+        "teacher"
+      ]
     },
     {
       "user_id": "7",
@@ -489,7 +673,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:10:00Z",
       "updated_at": "2024-01-02T09:10:00Z",
-      "roles": ["student"]
+      "roles": [
+        "student"
+      ]
     },
     {
       "user_id": "8",
@@ -500,7 +686,9 @@
       "email_verified": true,
       "created_at": "2024-01-03T09:00:00Z",
       "updated_at": "2024-01-03T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "admin"
+      ]
     },
     {
       "user_id": "9",
@@ -511,7 +699,9 @@
       "email_verified": true,
       "created_at": "2024-01-03T09:05:00Z",
       "updated_at": "2024-01-03T09:05:00Z",
-      "roles": ["practitioner"]
+      "roles": [
+        "practitioner"
+      ]
     },
     {
       "user_id": "10",
@@ -522,7 +712,9 @@
       "email_verified": true,
       "created_at": "2024-01-03T09:10:00Z",
       "updated_at": "2024-01-03T09:10:00Z",
-      "roles": ["viewer"]
+      "roles": [
+        "1"
+      ]
     },
     {
       "user_id": "11",
@@ -533,7 +725,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:00:00Z",
       "updated_at": "2024-01-01T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "2"
+      ]
     },
     {
       "user_id": "12",
@@ -544,7 +738,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:05:00Z",
       "updated_at": "2024-01-01T09:05:00Z",
-      "roles": ["creator"]
+      "roles": [
+        "3"
+      ]
     },
     {
       "user_id": "13",
@@ -555,7 +751,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:10:00Z",
       "updated_at": "2024-01-01T09:10:00Z",
-      "roles": ["manager"]
+      "roles": [
+        "4"
+      ]
     },
     {
       "user_id": "14",
@@ -566,7 +764,9 @@
       "email_verified": true,
       "created_at": "2024-01-01T09:15:00Z",
       "updated_at": "2024-01-01T09:15:00Z",
-      "roles": ["viewer"]
+      "roles": [
+        "1"
+      ]
     },
     {
       "user_id": "15",
@@ -577,7 +777,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:00:00Z",
       "updated_at": "2024-01-02T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "2"
+      ]
     },
     {
       "user_id": "16",
@@ -588,7 +790,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:05:00Z",
       "updated_at": "2024-01-02T09:05:00Z",
-      "roles": ["teacher"]
+      "roles": [
+        "3"
+      ]
     },
     {
       "user_id": "17",
@@ -599,7 +803,9 @@
       "email_verified": true,
       "created_at": "2024-01-02T09:10:00Z",
       "updated_at": "2024-01-02T09:10:00Z",
-      "roles": ["student"]
+      "roles": [
+        "4"
+      ]
     },
     {
       "user_id": "18",
@@ -610,7 +816,9 @@
       "email_verified": true,
       "created_at": "2024-01-03T09:00:00Z",
       "updated_at": "2024-01-03T09:00:00Z",
-      "roles": ["admin"]
+      "roles": [
+        "2"
+      ]
     },
     {
       "user_id": "19",
@@ -621,23 +829,31 @@
       "email_verified": true,
       "created_at": "2024-01-03T09:05:00Z",
       "updated_at": "2024-01-03T09:05:00Z",
-      "roles": ["practitioner"]
+      "roles": [
+        "6"
+      ]
     }
   ],
   "userRoles": {
     "1": {
       "user_id": "1",
-      "roles": ["admin"],
+      "roles": [
+        "admin"
+      ],
       "primary_role": "admin"
     },
     "2": {
       "user_id": 2,
-      "roles": ["creator"],
+      "roles": [
+        "creator"
+      ],
       "primary_role": "creator"
     },
     "3": {
       "user_id": 3,
-      "roles": ["basic"],
+      "roles": [
+        "basic"
+      ],
       "primary_role": "basic"
     }
   },
@@ -760,7 +976,12 @@
             "display_name": "View Analytics",
             "description": "Access analytics dashboard and reports",
             "power_level": 25,
-            "default_roles": ["basic", "creator", "moderator", "admin"],
+            "default_roles": [
+              "basic",
+              "creator",
+              "moderator",
+              "admin"
+            ],
             "icon": "📈"
           }
         ]
@@ -783,15 +1004,24 @@
             "display_name": "Edit Articles",
             "description": "Modify existing articles and content",
             "power_level": 40,
-            "default_roles": ["creator", "moderator", "admin"],
+            "default_roles": [
+              "creator",
+              "moderator",
+              "admin"
+            ],
             "icon": "✏️"
           }
         ]
       }
     ],
     "risk_assessment": {
-      "high_risk_roles": ["admin"],
-      "potential_conflicts": ["6003-delete_users", "7002-modify_settings"],
+      "high_risk_roles": [
+        "admin"
+      ],
+      "potential_conflicts": [
+        "6003-delete_users",
+        "7002-modify_settings"
+      ],
       "recommendations": [
         "Implement two-factor authentication for admin roles",
         "Regular audit of high-power permissions",

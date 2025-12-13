@@ -4,15 +4,14 @@ import json
 import time
 import uuid
 import logging
-from typing import Any, Iterable, AsyncIterable
+from typing import Any, AsyncIterable, Dict
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import ValidationError
-from models.api_models import ApiResponse, ErrorResponse, ErrorDetail, PaginatedData
+from models.api_models import ApiResponse, PaginatedData
 from utils.appwide.errors import AppException
 from utils.appwide.request_context import set_request_id, get_request_id
-
 
 # ---------------------------------------------------------
 # Logging Filter
@@ -21,7 +20,6 @@ class RequestIdFilter(logging.Filter):
     def filter(self, record):
         record.request_id = get_request_id()
         return True
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,68 +30,30 @@ for handler in logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------
 # Utility Functions
 # ---------------------------------------------------------
 SENSITIVE_FIELDS = {"password", "token", "access_token", "refresh_token", "secret", "api_key"}
 MAX_LOG_LENGTH = 2000
 
-
-def mask_sensitive(data: Any):
+def mask_sensitive(data: Any) -> Any:
     if hasattr(data, "model_dump"):
         data = data.model_dump()
     if isinstance(data, dict):
-        return {
-            k: ("***MASKED***" if k in SENSITIVE_FIELDS else mask_sensitive(v))
-            for k, v in data.items()
-        }
+        return {k: ("***MASKED***" if k in SENSITIVE_FIELDS else mask_sensitive(v)) for k, v in data.items()}
     if isinstance(data, list):
-        return [mask_sensitive(item) for item in data]
+        return [mask_sensitive(v) for v in data]
     return data
 
-
-def trim(text: str):
+def trim(text: str) -> str:
     return text if len(text) <= MAX_LOG_LENGTH else text[:MAX_LOG_LENGTH] + "...(truncated)"
 
-
-def paginate(data, page: int, page_size: int):
-    if not isinstance(data, list):
-        return data
-
-    total = len(data)
-    start, end = (page - 1) * page_size, page * page_size
-
-    return PaginatedData(
-        items=data[start:end],
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=(total + page_size - 1) // page_size,
-        has_next=end < total,
-        has_prev=start > 0,
-    )
-
-
-ERROR_CODE_MAP = {
-    400: "bad_request",
-    401: "unauthorized",
-    403: "forbidden",
-    404: "not_found",
-    409: "conflict",
-    422: "validation_error",
-    500: "internal_server_error",
-}
-
-
-# helper to create an async iterator over single bytes object
 def _make_async_body_iterator(resp_body: bytes) -> AsyncIterable[bytes]:
     async def _iter():
         yield resp_body
     return _iter()
 
-
-def make_json_response(status_code: int, content: dict, request_id: str, headers: dict = None):
+def make_json_response(status_code: int, content: dict, request_id: str, headers: dict = None) -> JSONResponse:
     response = JSONResponse(status_code=status_code, content=content, headers=headers)
     response.headers["X-Request-ID"] = request_id
     return response
@@ -103,16 +63,11 @@ def make_json_response(status_code: int, content: dict, request_id: str, headers
 # ---------------------------------------------------------
 class GlobalResponseMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        frontend_request_id = request.headers.get("X-Request-ID")
-        request_id = frontend_request_id or str(uuid.uuid4())
-        set_request_id(request_id)        
-        start = time.perf_counter()
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        set_request_id(request_id)
+        start_time = time.perf_counter()
 
-        # pagination params (defaults)
-        page = int(request.query_params.get("page", 1))
-        page_size = int(request.query_params.get("page_size", 20))
-
-        # Read request body for logging and allow downstream to read it again
+        # Read request body for logging
         try:
             body_raw = await request.body()
             body_text = trim(body_raw.decode("utf-8", errors="replace"))
@@ -122,104 +77,103 @@ class GlobalResponseMiddleware(BaseHTTPMiddleware):
 
         logger.info(f"Incoming {request.method} {request.url} Body={body_text}")
 
-        # Rebuild request so endpoint can read the body again
+        # Rebuild request for downstream
         request = Request(request.scope, receive=lambda: {"type": "http.request", "body": body_raw})
 
         try:
-            raw_response: Response = await call_next(request)
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            response: Response = await call_next(request)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-            # If endpoint explicitly opted-out, return raw response untouched.
-            if raw_response.headers.get("X-No-Wrap") == "true":
-                return raw_response
+            # Opt-out of wrapping
+            if response.headers.get("X-No-Wrap") == "true":
+                return response
 
-            # Read the response body (consume the iterator)
+            # Read response body
             resp_body = b""
-            async for chunk in raw_response.body_iterator:
-                # chunk may be bytes or memoryview
-                if isinstance(chunk, memoryview):
-                    resp_body += chunk.tobytes()
-                else:
-                    resp_body += chunk
+            async for chunk in response.body_iterator:
+                resp_body += chunk.tobytes() if isinstance(chunk, memoryview) else chunk
 
             resp_text = resp_body.decode("utf-8", errors="replace")
-            logger.info(f"Response {raw_response.status_code} Duration={duration_ms}ms Body={trim(resp_text)}")
+            logger.info(f"Response {response.status_code} Duration={duration_ms}ms Body={trim(resp_text)}")
 
-            # Try to parse JSON regardless of media_type (fixes data==null issue)
+            # Parse JSON
             try:
                 data = json.loads(resp_text)
             except Exception:
-                # Not JSON — restore async body iterator and return raw response
-                raw_response.body_iterator = _make_async_body_iterator(resp_body)
-                return raw_response
-
-            # If already in ApiResponse shape, don't re-wrap
+                response.body_iterator = _make_async_body_iterator(resp_body)
+                return response
+            print("data", data)
+            # Already wrapped
             if isinstance(data, dict) and "success" in data and "timestamp" in data:
-                raw_response.body_iterator = _make_async_body_iterator(resp_body)
-                return raw_response
+                print("success inside")
+                response.body_iterator = _make_async_body_iterator(resp_body)
+                return response
 
-            # Apply masking 
-            masked = mask_sensitive(data)
+            # Extract operation_metadata if present
+            op_meta = None
+            if isinstance(data, dict) and "operation_metadata" in data:
+                print("op_meta inside")
+                op_meta = data.pop("operation_metadata")
 
-            # Apply pagination only if "page" or "page_size" are explicitly provided
-            # Calls with ?page=1&page_size=20 return the paginated structure with items.
-            if "page" in request.query_params or "page_size" in request.query_params:
-                masked = paginate(masked, page, page_size)
-            
+            print("op_meta", op_meta)
 
-            wrapped = ApiResponse(success=True, message="OK", data=masked).model_dump()
+            # Data extraction:
+            # - Single-key dict → value
+            # - PaginatedData → keep as-is
+            extracted_data = data
+            if isinstance(data, dict):
+                paginated_keys = {"items", "total", "page", "page_size", "total_pages", "has_next", "has_prev"}
+                if paginated_keys.issubset(data.keys()):
+                    extracted_data = data  # keep PaginatedData
+                elif len(data) == 1:
+                    extracted_data = next(iter(data.values()))
 
-            # Return JSONResponse preserving original headers (except hop-by-hop)
-            headers = dict(raw_response.headers)
-            # Optionally remove/adjust headers that aren't valid on new response
+            # Mask sensitive fields
+            masked_data = mask_sensitive(extracted_data)
+
+            wrapped = ApiResponse(
+                success=True,
+                message="OK",
+                data=masked_data,
+                operation_metadata=op_meta
+            ).model_dump()
+
+            # Preserve headers except hop-by-hop
+            headers = dict(response.headers)
             for h in ("content-length", "transfer-encoding", "content-encoding"):
                 headers.pop(h, None)
 
-            return make_json_response(raw_response.status_code, wrapped, request_id)
+            return make_json_response(response.status_code, wrapped, request_id, headers)
 
+        # -------------------------------
+        # Error Handling
+        # -------------------------------
         except ValidationError as e:
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
-            err = {
+            logger.error(f"[{request_id}] ValidationError: {e}")
+            return make_json_response(422, {
                 "success": False,
                 "message": "Validation Error",
-                "error": {
-                    "code": "validation_error",
-                    "message": str(e),
-                    "details": e.errors()
-                },
+                "error": {"code": "validation_error", "message": str(e), "details": e.errors()},
                 "request_id": request_id,
-                "duration_ms": duration_ms,
-            }
-            logger.error(f"[{request_id}] ValidationError: {str(e)}")
-            return make_json_response(422, err, request_id)
+                "duration_ms": round((time.perf_counter() - start_time) * 1000, 2)
+            }, request_id)
 
         except AppException as e:
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
             logger.error(f"[{request_id}] AppException: {e.message}")
-            err = {
+            return make_json_response(500, {
                 "success": False,
                 "message": "Internal Server Error",
                 "error": {"code": e.code, "message": e.message, "details": e.details},
                 "request_id": request_id,
-                "duration_ms": duration_ms,
-            }
-            return make_json_response(500, err, request_id)
+                "duration_ms": round((time.perf_counter() - start_time) * 1000, 2)
+            }, request_id)
 
-
-        except Exception as ex:
-            duration_ms = round((time.perf_counter() - start) * 1000, 2)
-            logger.exception(f"[{request_id}] Unhandled Exception: {ex}")
-            err = {
+        except Exception as e:
+            logger.exception(f"[{request_id}] Unhandled Exception: {e}")
+            return make_json_response(500, {
                 "success": False,
                 "message": "Internal Server Error",
-                "error": {
-                    "code": ERROR_CODE_MAP.get(500, "error"),
-                    "message": "An internal error occurred",
-                    "details": repr(ex),
-                },
+                "error": {"code": "internal_server_error", "message": "An internal error occurred", "details": repr(e)},
                 "request_id": request_id,
-                "duration_ms": duration_ms,
-            }
-            return make_json_response(500, err, request_id)
-
-
+                "duration_ms": round((time.perf_counter() - start_time) * 1000, 2)
+            }, request_id)

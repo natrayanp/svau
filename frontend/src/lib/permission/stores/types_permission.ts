@@ -8,9 +8,15 @@ export interface User {
   created_at: string;        // ISO timestamp
   updated_at: string;        // ISO timestamp
   roles: string[];           // List of role keys assigned to the user
+  department?: string;    // Optional department
+  location?: string;      // Optional location
+  status?: 'AC' | 'IA' | 'SU' | 'EX' | 'CA' | 'DE';
+  statusEffectiveFrom?: string; // ISO timestamp for status effective date
+  statusEffectiveTo?: string;   // ISO timestamp for status end date
 }
 
 export type UserPaginationData = PaginatedData<User>;
+
 
 
 // Derive from User, but allow extra fields
@@ -22,6 +28,11 @@ export type UserUpdatePayload = {
   org_id: string;            // Organization foreign key
   email_verified: boolean;   // Whether email is verified
   roles: string[];           // List of role keys assigned to the user
+  department?: string;    // Optional department
+  location?: string;      // Optional location
+  status: string;        // status (e.g., active, inactive)
+  statusEffectiveFrom?: string; // ISO timestamp for status effective date
+  statusEffectiveTo?: string;   // ISO timestamp for status end date
 };
 
 export type ApiFetch = {
@@ -29,12 +40,12 @@ export type ApiFetch = {
   limit: number;
   filter?: any;
   sort?: any;
-}; 
+};
 
 export type RolePermissions = {
-    permissstruct_id: string;
-    granted_action_key: string[];
-  };
+  permissstruct_id: string;
+  granted_action_key: string[];
+};
 
 export interface Role {
   role_id: string;
@@ -134,6 +145,14 @@ export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;
+  operation_metadata?: {
+    success: boolean;
+    entity: string;
+    operation: string;
+    message: string;
+    count: number;
+    ids: string[];
+  };
   error?: ApiError;
 }
 
@@ -153,7 +172,7 @@ export interface TableVersion {
 
 export interface PaginatedData<T> {
   items: T[];
-  total: number;  
+  total: number;
   offset: number;
   limit: number;
   org_id: number;
@@ -162,7 +181,7 @@ export interface PaginatedData<T> {
 
 
 // ==================== SPECIFIC API RESPONSE TYPES ====================
-export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> {}
-export interface RoleApiResponse extends ApiResponse<PaginatedData<Role>> {}
-export interface UsersGetApiResponse extends ApiResponse<PaginatedData<User>> {}
-export interface UsersDelApiResponse extends ApiResponse<String> {}
+export interface PermissionStructureResponse extends ApiResponse<PermissionStructure> { }
+export interface RoleApiResponse extends ApiResponse<PaginatedData<Role>> { }
+export interface UsersGetApiResponse extends ApiResponse<PaginatedData<User>> { }
+export interface UsersDelApiResponse extends ApiResponse<String> { }

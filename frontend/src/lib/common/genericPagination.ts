@@ -99,7 +99,7 @@ export function createGenericPagination<T>({
     updatePaginationView(page, page_size, cache);
   }
 
- function deleteItem(itemIds: (string | number)[]) {
+ function deleteItem(itemIds: T) {
     const cache = get(cacheStore);
     const idsToDelete = new Set(itemIds); // Use a Set for O(1) lookup efficiency
     let itemsRemovedCount = 0;

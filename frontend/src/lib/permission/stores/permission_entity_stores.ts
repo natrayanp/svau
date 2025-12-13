@@ -12,17 +12,16 @@ export const usersStore = createEntityStore<User>(
   (user) => user.user_id,
   100,
   5000,
-   {
+  {
     searchable: ['display_name', 'email', 'username'],
     sortable: ['display_name', 'email', 'created_at'],
     arrayFields: ['roles', 'permissions']
-    },
+  },
   //permissionApi.createUser,
   undefined,
   //permissionApi.updateUsers,
   async (params) => permissionApi.updateUsersRole(params),
   async (params) => permissionApi.deleteUserRole(params)
-  //permissionApi.deleteUser
 );
 
 // ------------------------------
@@ -35,11 +34,11 @@ export const rolesStore = createEntityStore<Role>(
   100,
   5000,
   {
-    searchable: ['role_id', 'description'],
+    searchable: ['role_id', 'description', 'display_name'],
     sortable: ['power_level', 'permission_count'],
-    arrayFields: ['permissions', 'category_access'] 
+    arrayFields: ['permissions', 'category_access']
   },
   undefined, //permissionApi.createRole,
   async (params) => permissionApi.updateRole(params),  //permissionApi.updateRole  
-  // deleteFn omitted → deleteItem won’t exist
+  async (params) => permissionApi.deleteRole(params)  // deleteFn omitted → deleteItem won’t exist
 );
