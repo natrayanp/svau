@@ -19,7 +19,7 @@ export function createEntityStore<T>(
     data: Partial<T>[]
   ) => Promise<PaginatedData<T>>,
   deleteFn?: (
-    data: Partial<T>[]
+    data: string | number[]
   ) => Promise<PaginatedData<T>>
 ) {
   const cache = writable<Record<number, (T & { id: string | number })[]>>({});
@@ -631,7 +631,7 @@ export function createEntityStore<T>(
     mutating.set(true);
     
     try {
-      return await handleMutation(deleteFn, data, 'delete');
+      return await handleMutation(deleteFn, ids, 'delete');
     } catch (error) {
       console.error('Delete failed in store:', error);
       throw error;

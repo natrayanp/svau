@@ -180,7 +180,7 @@ export function useMutations<T>(store: {
     id: string | number | (string | number)[],
     changes: Partial<T> | Partial<T>[]
   ) => Promise<T | T[]>;
-  deleteItem?: (id: string | number | (string | number)[]) => Promise<void>;
+  deleteItem?: (id: string | number | (string | number)[]) => Promise<T | T[]>;
 }) {
   // Add new entity or entities
   async function addItem(data: Partial<T> | Partial<T>[]) {

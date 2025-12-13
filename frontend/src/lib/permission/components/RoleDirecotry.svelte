@@ -106,14 +106,37 @@
     toggleAllPageItems(pagedRoles);
   }
 
-  const deleteRole = async (roleKey: string | string[], roleName?: string) => {
-    const roleArray = Array.isArray(roleKey) ? roleKey : [roleKey];
-    if (roleArray.length === 0) return;
-    const confirmationText = roleArray.length === 1
-      ? `Delete role "${roleName ?? roleArray[0]}"?`
-      : `Delete ${roleArray.length} roles?`;
+  const deleteRole = async (role) => {
+    deleteHelper([String(role.role_id)],role);
+    /*
+    const confirmationText = `Delete role "${role.display_name || role.role_id}"?`;
     if (confirm(confirmationText)) {
-      deleteRoleMut?.(roleArray);
+      await deleteRoleMut?.([String(role.role_id)]);
+      loadRoles($currentPage);
+    } */  
+  };
+
+  const deleteSelectedRoles = async () => {    
+    deleteHelper($selectedRoleIds);    
+  };
+
+  const deleteHelper = async (roleIds: string[], role:Role=undefined) => {
+    if (roleIds.length === 0) return;
+
+    const confirmationText = (roleIds.length === 1 && role)? `Delete role "${role.display_name || role.role_id}"?`:`Delete ${roleIds.length} selected ${roleIds.length === 1 ? 'role' : 'roles'}?`;
+    if (confirm(confirmationText)) {
+      try{
+        await deleteRoleMut?.(roleIds);
+      }catch(err:any){
+        console.log(err)
+          const message =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Failed to delete roles";
+          alert(message);
+        return;
+      }
+      clearSelection();
       loadRoles($currentPage);
     }
   };
@@ -134,20 +157,6 @@
     }
   };
 
-  const deleteSelectedRoles = async () => {
-    if ($selectedRoleIds.length === 0) return;
-
-    const confirmationText =
-      $selectedRoleIds.length === 1
-        ? `Delete role "${pagedRoles.find(r => r.role_id === $selectedRoleIds[0])?.display_name ?? $selectedRoleIds[0]}"?`
-        : `Delete ${$selectedRoleIds.length} selected roles?`;
-
-    if (confirm(confirmationText)) {
-      await deleteRoleMut?.($selectedRoleIds);
-      clearSelection();
-      loadRoles($currentPage);
-    }
-  };
 
   const exportCSV = (filename: string, rows: (string | number)[][]) => {
     const csv = rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
@@ -397,7 +406,7 @@
                     {#if onViewRole}<button on:click={() => onViewRole(role)} class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="View Role Details">👁️</button>{/if}
                     {#if onEditRole}<button on:click={() => onEditRole(role)} class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Edit Role">✏️</button>{/if}
                     <button on:click={() => duplicateRole(role)} class="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors" title="Duplicate Role">📋</button>
-                    <button on:click={() => deleteRole(role.role_id, role.display_name)} disabled={role.is_system_role} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" title={role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}>🗑️</button>
+                    <button on:click={() => deleteRole(role)} disabled={role.is_system_role} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" title={role.is_system_role ? 'Cannot delete system role' : 'Delete Role'}>🗑️</button>
                   </div>
                 </td>
               </tr>

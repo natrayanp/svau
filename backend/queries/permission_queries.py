@@ -332,130 +332,143 @@ SELECT
     ) as permission_structure;
 """
 
-PERMISSION_STRUCTURE_QUERY_OLD = """
-WITH module_data AS (
-    SELECT 
-        permissstruct_id as id,
-        record_type,
-        key,
-        name,
-        description,
-        icon,
-        color,
-        display_order,
-        allowed_actions
-    FROM permission_structures 
-    WHERE record_type = 'module' AND is_active = true
-    ORDER BY display_order
-),
-menu_data AS (
-    SELECT 
-        ps.permissstruct_id as id,
-        ps.record_type,
-        ps.key,
-        ps.name,
-        ps.description,
-        ps.display_order,
-        ps.parent_id as module_id,
-        ps.allowed_actions
-    FROM permission_structures ps
-    WHERE ps.record_type = 'menu' AND ps.is_active = true
-    ORDER BY ps.display_order
-),
-card_data AS (
-    SELECT 
-        ps.permissstruct_id as id,
-        ps.record_type,
-        ps.key,
-        ps.name,
-        ps.description,
-        ps.display_order,
-        ps.parent_id as menu_id,
-        ps.allowed_actions
-    FROM permission_structures ps
-    WHERE ps.record_type = 'card' AND ps.is_active = true
-    ORDER BY ps.display_order
-),
-action_details AS (
-    SELECT 
-        ps.permissstruct_id,
-        JSON_AGG(
-            JSON_BUILD_OBJECT(
-                'action_key', ad.action_key,
-                'display_name', ad.display_name,
-                'power_level', ad.power_level,
-                'category', ad.category
-            )
-        ) as action_details
-    FROM permission_structures ps
-    CROSS JOIN LATERAL jsonb_array_elements_text(ps.allowed_actions) as action_val
-    INNER JOIN action_definitions ad ON ad.action_key = action_val
-    WHERE ad.is_active = true
-    GROUP BY ps.permissstruct_id
-)
-SELECT 
-    JSON_BUILD_OBJECT(
-        'modules', (
-            SELECT JSON_AGG(
-                JSON_BUILD_OBJECT(
-                    'id', md.id::text,
-                    'record_type', md.record_type,
-                    'key', md.key,
-                    'name', md.name,
-                    'description', md.description,
-                    'icon', md.icon,
-                    'color', md.color,
-                    'display_order', md.display_order,
-                    'allowed_actions', COALESCE(ad.action_details, '[]'::json),
-                    'menus', (
-                        SELECT JSON_AGG(
-                            JSON_BUILD_OBJECT(
-                                'id', m.id::text,
-                                'record_type', m.record_type,
-                                'key', m.key,
-                                'name', m.name,
-                                'description', m.description,
-                                'display_order', m.display_order,
-                                'module_id', m.module_id::text,
-                                'allowed_actions', COALESCE(ad2.action_details, '[]'::json),
-                                'cards', (
-                                    SELECT JSON_AGG(
-                                        JSON_BUILD_OBJECT(
-                                            'id', c.id::text,
-                                            'record_type', c.record_type,
-                                            'key', c.key,
-                                            'name', c.name,
-                                            'description', c.description,
-                                            'display_order', c.display_order,
-                                            'menu_id', c.menu_id::text,
-                                            'allowed_actions', COALESCE(ad3.action_details, '[]'::json)
-                                        )
-                                        ORDER BY c.display_order
-                                    )
-                                    FROM card_data c
-                                    LEFT JOIN action_details ad3 ON c.id = ad3.permissstruct_id
-                                    WHERE c.menu_id = m.id
-                                )
-                            )
-                            ORDER BY m.display_order
-                        )
-                        FROM menu_data m
-                        LEFT JOIN action_details ad2 ON m.id = ad2.permissstruct_id
-                        WHERE m.module_id = md.id
-                    )
-                )
-                ORDER BY md.display_order
-            )
-            FROM module_data md
-            LEFT JOIN action_details ad ON md.id = ad.permissstruct_id
-        )
-    ) as permission_structure
-"""
-
 #---------------------------------------#
 #  ROLES RELATED QUERIES - START        #
 #---------------------------------------#
 ORGANIZATION_ROLES_QUERY = """
+WITH user_organization AS (
+    SELECT org_id
+    FROM users
+    WHERE user_id = %(current_user_id)s
+),
+active_package_menus AS (
+    SELECT 
+        p.org_id,
+        p.allowed_menu_ids
+    FROM packages p
+    WHERE p.org_id = (SELECT org_id FROM user_organization)
+      AND p.status = 'AC'
+      AND CURRENT_DATE BETWEEN p.effective_date 
+          AND (p.expiry_date + INTERVAL '1 day' * p.grace_period_days)
+    ORDER BY p.created_at DESC
+    LIMIT 1
+),
+filtered_permission_structures AS (
+    SELECT DISTINCT ps.permissstruct_id AS id
+    FROM permission_structures ps
+    CROSS JOIN active_package_menus apm
+    WHERE ps.record_type = 'module'
+       OR ps.permissstruct_id = ANY(
+           SELECT jsonb_array_elements_text(apm.allowed_menu_ids)::integer
+       )
+       OR (ps.record_type = 'card' AND ps.parent_id IN (
+           SELECT jsonb_array_elements_text(apm.allowed_menu_ids)::integer
+       ))
+),
+role_permission_counts AS (
+    SELECT 
+        r.role_id,
+        COUNT(DISTINCT rp.structure_id) AS permission_count,
+        COALESCE(
+            JSON_AGG(
+                JSON_BUILD_OBJECT(
+                    'permissstruct_id', rp.structure_id::text,
+                    'granted_action_key', rp.granted_actions
+                )
+            ) FILTER (WHERE rp.structure_id IS NOT NULL),  -- <-- ignore nulls
+            '[]'::json
+        ) AS permission_ids
+    FROM roles r
+    LEFT JOIN role_permissions rp 
+           ON rp.role_id = r.role_id
+    LEFT JOIN permission_structures ps 
+           ON rp.structure_id = ps.permissstruct_id
+          AND ps.permissstruct_id IN (SELECT id FROM filtered_permission_structures)
+    WHERE r.is_active = TRUE
+      AND r.org_id = (SELECT org_id FROM user_organization)
+    GROUP BY r.role_id
+),
+role_user_counts AS (
+    SELECT
+        r.role_id,
+        COUNT(ur.user_id) AS user_count
+    FROM roles r
+    LEFT JOIN user_roles ur 
+           ON ur.role_id = r.role_id
+    LEFT JOIN users u 
+           ON ur.user_id = u.user_id AND u.status = 'AC'
+    WHERE r.is_active = TRUE
+      AND r.org_id = (SELECT org_id FROM user_organization)
+    GROUP BY r.role_id
+),
+role_details AS (
+    SELECT 
+        r.role_id,
+        r.org_id,
+        r.display_name,
+        r.description,
+        r.is_system_role,
+        r.is_template,
+        r.template_id,
+        r.template_name,
+        r.created_at,
+        o.name AS organization_name,
+        COALESCE(rpc.permission_count, 0) AS permission_count,
+        COALESCE(rpc.permission_ids, '[]'::json) AS permission_ids,
+        COALESCE(ruc.user_count, 0) AS user_count
+    FROM roles r
+    JOIN organizations o ON r.org_id = o.org_id
+    LEFT JOIN role_permission_counts rpc 
+        ON r.role_id = rpc.role_id
+    LEFT JOIN role_user_counts ruc 
+        ON r.role_id = ruc.role_id
+    WHERE r.is_active = TRUE
+      AND r.org_id = (SELECT org_id FROM user_organization)
+),
+total_count AS (
+    SELECT COUNT(*) AS total FROM role_details
+),
+paged_roles AS (
+    SELECT *
+    FROM role_details
+    ORDER BY display_name
+    OFFSET %(offset)s LIMIT %(limit)s
+)
+SELECT json_build_object(
+    'items', (
+        SELECT json_agg(
+            json_build_object(
+                'role_id', pr.role_id::text,
+                'organization_id', pr.org_id,
+                'display_name', pr.display_name,
+                'description', pr.description,
+                'is_system_role', pr.is_system_role,
+                'is_template', pr.is_template,
+                'template_id', pr.template_id,
+                'template_name', pr.template_name,
+                'organization_name', pr.organization_name,
+                'permission_count', pr.permission_count,
+                'permission_ids', pr.permission_ids,
+                'user_count', pr.user_count,
+                'created_at', pr.created_at
+            )
+        )
+        FROM paged_roles pr
+    ),
+    'total', (SELECT total FROM total_count),
+    'offset', %(offset)s,
+    'limit', %(limit)s,
+    'org_id', (SELECT org_id FROM user_organization),
+    'version', json_build_array(
+        json_build_object(
+            'table_name', 'roles',
+            'table_version', (SELECT MAX(table_version) FROM tableversion WHERE table_name = 'roles')
+        )
+    )
+) AS roles_data
+"""
+
+ORGANIZATION_ROLES_QUERY_old = """
 WITH user_organization AS (
     SELECT org_id 
     FROM users 
@@ -644,7 +657,7 @@ SOFT_DELETE_ROLE = """
 UPDATE roles 
 SET 
     is_active = FALSE, 
-    status = 'IN',
+    status = 'DE',
     updated_at = CURRENT_TIMESTAMP,
     updated_by = %(updated_by)s
 WHERE role_id = %(role_id)s
@@ -1449,6 +1462,17 @@ VALUES (%(user_id)s, %(role_id)s, %(org_id)s, %(assigned_by)s, CURRENT_TIMESTAMP
 ON CONFLICT (user_id, role_id, org_id) DO UPDATE 
 SET updated_by = EXCLUDED.updated_by,
     updated_at = CURRENT_TIMESTAMP
+"""
+
+UPDATE_FOR_DELETE_USER = """
+UPDATE user_roles 
+SET 
+    status = 'DE',
+    updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = %(user_id)s
+        AND org_id = %(org_id)s
+          AND status != 'DE'
+RETURNING user_id
 """
 
 VERIFY_ROLE_ACCESS = """

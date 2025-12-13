@@ -161,13 +161,14 @@ const {
   const viewUser = (id: string) => onViewUser?.(id);
   const editUser = (id: string) => onEditUser?.(id);
   const deleteUser = async(
-      users: (string | number)| (string | number) [], // Accepts individual or array
+      users: User | (string | number) [], // Accepts individual or array
   ) => {
-      const userArray = Array.isArray(users) ? users : [users];
+    
+      const userArray = Array.isArray(users) ? users : [users.user_id];
       if (userArray.length === 0) {
           return;
       }
-      let primaryname = userArray.length === 1?getUserbyid(userArray[0]):'';
+      let primaryname = userArray.length === 1?users.display_name:'';
 
       const confirmationText = userArray.length === 1
           ? `Delete user "${primaryname}"?`
@@ -402,7 +403,7 @@ const {
               <div class="flex justify-end space-x-2">
                 <button on:click={() => viewUser(user.user_id)} class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">👁️</button>
                 <button on:click={() => editUser(user.user_id)} class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100">✏️</button>
-                <button on:click={() => deleteUser(user.user_id)} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">🗑️</button>
+                <button on:click={() => deleteUser(user)} class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">🗑️</button>
               </div>
             </td>
           </tr>

@@ -20,11 +20,14 @@ class AppException(Exception):
         code: str,
         message: Optional[str] = None,
         details: Optional[str] = None,
+        status_code: int = 400,
         db: DatabaseManager = None
     ):
         self.code = code
         self.details = details
         self.message = message
+        self.status_code = status_code
+        super().__init__(message)
 
         # If message is not passed, try to fetch from DB
         if not self.message:

@@ -159,10 +159,10 @@ class GlobalResponseMiddleware(BaseHTTPMiddleware):
             }, request_id)
 
         except AppException as e:
-            logger.error(f"[{request_id}] AppException: {e.message}")
-            return make_json_response(500, {
+            logger.error(f"[{request_id}] AppException: {e.code} - {e.message}")
+            return make_json_response(e.status_code, {
                 "success": False,
-                "message": "Internal Server Error",
+                "message": e.message or "Application Error",
                 "error": {"code": e.code, "message": e.message, "details": e.details},
                 "request_id": request_id,
                 "duration_ms": round((time.perf_counter() - start_time) * 1000, 2)

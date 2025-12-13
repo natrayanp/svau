@@ -823,8 +823,8 @@ async def bulk_delete_organization_roles(
         
         # Log successful operation
         logger.info(
-            f"User {current_user.user_id} bulk deleted {operation_result['deleted_count']} roles. "
-            f"Deleted IDs: {operation_result['deleted_ids']}, Hard delete: {hard_delete}"
+            f"User {current_user.user_id} bulk deleted {operation_result['count']} roles. "
+            f"Deleted IDs: {operation_result['ids']}, Hard delete: {hard_delete}"
         )
         
         # Get paginated data after successful deletion
@@ -852,9 +852,11 @@ async def bulk_delete_organization_roles(
         }
         
     except AppException as e:
-        # Transaction was rolled back
         logger.warning(f"Bulk delete failed for user {current_user.user_id}: {e.message}")
-        raise
+        raise HTTPException(
+            status_code=e.status_code if hasattr(e, "status_code") else 400,  # fallback
+            detail={"message": e.message, "code": getattr(e, "code", None)}
+        )
 
     except Exception as e:
         logger.exception(f"Unexpected error in bulk role deletion: {e}")

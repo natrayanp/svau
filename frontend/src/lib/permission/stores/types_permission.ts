@@ -57,6 +57,7 @@ export interface Role {
   template_name: string[];
   permission_count: number;
   user_count: number;
+  status: 'AC' | 'IA';  // Active or Inactive
 
   // ADD THESE FOR LOCAL OPERATIONS:
   permissions?: RolePermissions[]; // permission IDs for this role

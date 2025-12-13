@@ -1,6 +1,24 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional, Dict, Any
+# models/api_models.py
+
+from pydantic import BaseModel, Field, EmailStr, validator
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 from datetime import datetime
+
+T = TypeVar('T')  # Generic type for success data
+E = TypeVar('E')  # Generic type for error details
+
+# ==================== GENERIC ID STRING MIXIN ====================
+
+class IdStringMixin(BaseModel):
+    """Mixin to convert integer IDs to strings automatically"""
+    
+    @staticmethod
+    def convert_to_str(value: Any):
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, list):
+            return [str(v) if isinstance(v, int) else v for v in value]
+        return value
 
 
 # ==================== PERMISSION STRUCTURE MODELS ====================
@@ -11,7 +29,7 @@ class ActionDetail(BaseModel):
     power_level: int
     category: Optional[str] = None
 
-class PermissionDetail(BaseModel):
+class PermissionDetail(IdStringMixin):
     id: str
     permission_action: str
     display_name: str
@@ -24,28 +42,32 @@ class PermissionDetail(BaseModel):
     menu_name: Optional[str] = None
     module_name: Optional[str] = None
 
-class CardDetail(BaseModel):
+    _convert_id = validator("id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
+
+class CardDetail(IdStringMixin):
     id: str
     key: str
     name: str
     description: str
     display_order: int
     menu_id: str
-    #permissions: List[PermissionDetail]
-    allowed_actions: Optional[List[ActionDetail]] = []  # From SQL query
+    allowed_actions: Optional[List[ActionDetail]] = []
 
-class MenuDetail(BaseModel):
+    _convert_id = validator("id", "menu_id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
+
+class MenuDetail(IdStringMixin):
     id: str
     key: str
     name: str
     description: str
     display_order: int
     module_id: str
-    #permissions: List[PermissionDetail]
     cards: List[CardDetail]
-    allowed_actions: Optional[List[ActionDetail]] = []  # From SQL query
+    allowed_actions: Optional[List[ActionDetail]] = []
 
-class ModuleDetail(BaseModel):
+    _convert_id = validator("id", "module_id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
+
+class ModuleDetail(IdStringMixin):
     id: str
     key: str
     name: str
@@ -54,7 +76,9 @@ class ModuleDetail(BaseModel):
     description: str
     display_order: int
     menus: List[MenuDetail]
-    allowed_actions: Optional[List[ActionDetail]] = []  # From SQL query
+    allowed_actions: Optional[List[ActionDetail]] = []
+
+    _convert_id = validator("id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
 
 class PermissionStructureMetadata(BaseModel):
     total_modules: int
@@ -72,49 +96,15 @@ class PermissionStructureAPIResponse(BaseModel):
     message: str
     data: Optional[PermissionStructure] = None
 
-# ==================== UPDATE EXISTING MODELS ====================
+# ==================== ROLE AND PERMISSIONS ====================
 
-# Update your existing UserPermissionsResponse to use string IDs
-class UserPermissionsResponse(BaseModel):
-    user_id: int
-    permission_ids: List[str]  # ← Change from List[int] to List[str]
+class PermissionItem(IdStringMixin):
+    permissstruct_id: str
+    granted_action_key: List[str]
 
-'''class RolePermissionsResponse(BaseModel):
-    role: str
-    permission_ids: List[str]  # ← Change from List[int] to List[str]
-    permission_count: int
+    _convert_id = validator("permissstruct_id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
 
-
-
-class RolePermissionsUpdateRequest(BaseModel):
-    permission_ids: List[str]  # ← Change from List[int] to List[str]
-
-class UserPermissionsRequest(BaseModel):
-    permission_ids: List[str]  # ← Change from List[int] to List[str]
-'''
-class PermissionValidationRequest(BaseModel):
-    parent_permission_ids: List[str]  # ← Change from List[int] to List[str]
-    child_permission_ids: List[str]   # ← Change from List[int] to List[str]
-
-# ==================== ADDITIONAL MODELS FOR OTHER ENDPOINTS ====================
-
-class RoleTemplate(BaseModel):
-    template_key: str
-    template_name: str
-    description: str
-    permission_ids: List[str]
-    power_level: int
-    is_system_template: bool
-    permission_details: Optional[List[Dict[str, Any]]] = None
-    roles_using_count: int
-    created_at: datetime
-    updated_at: datetime
-
-class PermissionItem(BaseModel):
-    permissstruct_id: int = Field(..., description="Permission structure identifier")
-    granted_action_key: List[str] = Field(..., description="List of granted actions")
-
-class Role(BaseModel):
+class Role(IdStringMixin):
     role_id: str
     display_name: str
     description: Optional[str] = None
@@ -123,11 +113,11 @@ class Role(BaseModel):
     template_id: Optional[str] = None
     template_name: Optional[str] = None
     permission_count: int
-    permission_ids: List[PermissionItem]   # IDs of granted permissions
+    permission_ids: List[PermissionItem]
     user_count: int
     created_at: datetime
 
-
+    _convert_role_id = validator("role_id", "template_id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
 
 class RolesSummary(BaseModel):
     total_roles: int
@@ -143,23 +133,24 @@ class RoleModel(BaseModel):
     roles: List[Role]
     summary: RolesSummary
 
+# ==================== USER MODELS ====================
 
-class QuickAction(BaseModel):
-    icon: str
-    label: str
-    href: str
-    description: str
+class UserPermissionsResponse(IdStringMixin):
+    user_id: str
+    permission_ids: List[str]
 
-class HealthCheck(BaseModel):
-    status: str
-    services: Dict[str, bool]
-    tables: Dict[str, bool]
-    metrics: Dict[str, Any]
-    last_updated: str
+    @validator("permission_ids", pre=True)
+    def convert_permission_ids(cls, v):
+        return [str(i) for i in v] if isinstance(v, list) else v
 
+class PermissionValidationRequest(IdStringMixin):
+    parent_permission_ids: List[str]
+    child_permission_ids: List[str]
 
-class UserModel(BaseModel):
-    user_id: int
+    _convert_ids = validator("parent_permission_ids", "child_permission_ids", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
+
+class UserModel(IdStringMixin):
+    user_id: str
     uid: str
     email: EmailStr
     display_name: Optional[str] = None
@@ -174,7 +165,16 @@ class UserModel(BaseModel):
     status_effective_to: Optional[datetime] = None
     roles: List[str] = []
 
+    _convert_ids = validator("user_id", "org_id", pre=True, allow_reuse=True)(IdStringMixin.convert_to_str)
+
     class Config:
         from_attributes = True
 
-    
+# ==================== HEALTH CHECK ====================
+
+class HealthCheck(BaseModel):
+    status: str
+    services: Dict[str, bool]
+    tables: Dict[str, bool]
+    metrics: Dict[str, Any]
+    last_updated: str

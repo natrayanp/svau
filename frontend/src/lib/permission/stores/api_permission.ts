@@ -194,11 +194,12 @@ class PermissionApi extends BaseApi {
     return data;
   }
 
-  async deleteUserRole(deletes: Partial<User>[]): Promise<PaginatedData<User>> {
+  async deleteUserRole(deletes: string| number []): Promise<PaginatedData<User>> {
+    console.log(deletes);
     const response = await this.request<ApiResponse<PaginatedData<User>>>(`/users/delete`, {
       method: 'DELETE',
       body: JSON.stringify({ 
-          data: deletes
+          user_ids: deletes
       })
     });
     return this.handleResponse<PaginatedData<User>>(response);
@@ -238,11 +239,12 @@ class PermissionApi extends BaseApi {
   }
 
 
-  async deleteRole(deletes: Partial<Role>[], pagination?: { offset: number; limit: number }): Promise<PaginatedData<Role>> {
+  async deleteRole(deletes: string| number []): Promise<PaginatedData<Role>> {
+    console.log(deletes);
     const response = await this.request<ApiResponse<PaginatedData<Role>>>(`/roles/delete`, {
       method: 'DELETE',
       body: JSON.stringify({
-          data: deletes
+          role_ids: deletes
       })
     });
 
