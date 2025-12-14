@@ -1,0 +1,12 @@
+{
+  "PUBLIC_PATHS": [
+    "/auth-api/login",
+    "/auth-api/register",
+    "/auth-api/refresh",
+    "/auth-api/logout",
+    "/auth-api/health"
+  ],
+  "PUBLIC_PREFIXES": [
+    "/auth-api/permissions"
+  ]
+}

@@ -9,6 +9,8 @@ services:
       context: ./frontend
     ports:
       - "4173:4173"
+    env_file:
+      .env.development
     depends_on:
       - backend
       - firebase-emulator
@@ -31,6 +33,9 @@ services:
       NODE_ENV: development
       FIREBASE_PROJECT_ID: local-svelte-app
       FIREBASE_EMULATOR_HOST: firebase-emulator:9099
+    
+    env_file:
+      .env.development
     depends_on:
       db:
         condition: service_healthy

@@ -1,6 +1,6 @@
 <script>
-  import { authService } from '$lib/auth/auth';
-  import { authLoading } from '$lib/auth/stores';
+  import { authService } from '$lib/auth/authService';
+  import { authLoading } from '$lib/auth/authStore';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   

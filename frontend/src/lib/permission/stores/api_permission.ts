@@ -18,7 +18,7 @@ import type {
 import MOCK_DATA from '../Mockdata/permissions_mockdata.json';
 
 import type { } from './types_permission';
-import type { ApiUser } from '$lib/auth/types';
+import type { ApiUser } from '$lib/auth/authtypes';
 
 
 const PERMISSION_PREFIX_URL = '/auth-api/permissions';

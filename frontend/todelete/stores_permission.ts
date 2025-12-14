@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import { permissionApi } from './api_permission';
+//import { permissionApi } from './api_permission';
 import { roleApi } from './api_role';
 import { PermissionUtils } from './utils_permission';
 import type {

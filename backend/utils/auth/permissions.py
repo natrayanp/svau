@@ -2,7 +2,7 @@ from typing import Set, List, Dict, Any, Optional, Tuple
 from functools import lru_cache
 from fastapi import Depends, HTTPException, status
 from datetime import datetime, timedelta
-from .middleware import get_current_user
+from .auth_middleware import get_current_user
 from utils.database import get_db
 from utils.database.query_manager import permission_query
 from models.auth_models import User

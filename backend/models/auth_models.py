@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator, ConfigDict
+from pydantic import BaseModel, EmailStr, validator, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -8,6 +8,17 @@ class UserRole(str, Enum):
     CREATOR = "creator"
     MODERATOR = "moderator"
     ADMIN = "admin"
+
+# ✅ Renamed to AuthUser
+class AuthUser(BaseModel):
+    """Authenticated user model (from JWT/database)"""
+    user_id: int = Field(..., description="Database user ID")
+    uid: str = Field(..., description="Firebase UID")
+    email: EmailStr = Field(..., description="User email")
+    display_name: str = Field(..., description="Display name")
+    role: UserRole = Field(default=UserRole.BASIC, description="User role")
+    email_verified: bool = Field(default=False, description="Email verification status")
+    created_at: datetime = Field(..., description="Account creation timestamp")
 
 # REQUEST MODELS - Accept string IDs from frontend, convert to int
 class RolePermissionsUpdateRequest(BaseModel):

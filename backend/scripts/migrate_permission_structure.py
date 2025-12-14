@@ -6,23 +6,23 @@ import os
 import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils.database import Database
+from utils.database.database import DatabaseManager
 from utils.auth.permissions import PERMISSION_STRUCTURE
 
 def migrate_permission_structure():
     """Migrate hardcoded permission structure to database tables"""
-    db = Database()
+    db = DatabaseManager()
     
     try:
         print("Starting permission structure migration...")
         
         # Clear existing data (in correct order to handle foreign keys)
-        db.fetch_one("TRUNCATE TABLE permission_cache CASCADE")
-        db.fetch_one("TRUNCATE TABLE role_permissions CASCADE")
-        db.fetch_one("TRUNCATE TABLE card_permissions CASCADE")
-        db.fetch_one("TRUNCATE TABLE permission_cards CASCADE")
-        db.fetch_one("TRUNCATE TABLE permission_menus CASCADE")
-        db.fetch_one("TRUNCATE TABLE permission_modules CASCADE")
+        db.execute("TRUNCATE TABLE permission_cache CASCADE")
+        db.execute("TRUNCATE TABLE role_permissions CASCADE")
+        db.execute("TRUNCATE TABLE card_permissions CASCADE")
+        db.execute("TRUNCATE TABLE permission_cards CASCADE")
+        db.execute("TRUNCATE TABLE permission_menus CASCADE")
+        db.execute("TRUNCATE TABLE permission_modules CASCADE")
         
         print("Cleared existing permission data")
         
@@ -58,7 +58,7 @@ def migrate_permission_structure():
                     
                     # Insert permissions
                     for permission in card["permissions"]:
-                        db.execute_insert(
+                        db.execute(
                             """INSERT INTO card_permissions (id, card_id, permission_action, display_name, description, power_level, default_roles) 
                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                             (permission["id"], card["id"], permission["action"], 
@@ -81,43 +81,37 @@ def migrate_permission_structure():
         for role, permission_ids in role_permission_mapping.items():
             for perm_id in permission_ids:
                 # Verify permission exists before inserting
-                permission_exists = await db.fetch_one(
+                permission_exists = db.fetch_one(
                     "SELECT id FROM card_permissions WHERE id = %s",
                     (perm_id,)
                 )
-                
+
                 if permission_exists:
-                    db.execute_insert(
+                    db.execute(
                         "INSERT INTO role_permissions (role_id, permission_id) VALUES (%s, %s)",
                         (role, perm_id)
                     )
                 else:
                     print(f"Warning: Permission ID {perm_id} not found for role {role}")
-            
+
             print(f"Migrated {len(permission_ids)} permissions for role: {role}")
         
         # Verify migration
         print("\nVerifying migration...")
-        
+
         # Count records
-        modules_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_modules")['count']
-        menus_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_menus")['count']
-        cards_count = await db.fetch_one("SELECT COUNT(*) as count FROM permission_cards")['count']
-        permissions_count = await db.fetch_one("SELECT COUNT(*) as count FROM card_permissions")['count']
-        role_perms_count = await db.fetch_one("SELECT COUNT(*) as count FROM role_permissions")['count']
-        
+        modules_count = db.fetch_one("SELECT COUNT(*) as count FROM permission_modules")['count']
+        menus_count = db.fetch_one("SELECT COUNT(*) as count FROM permission_menus")['count']
+        cards_count = db.fetch_one("SELECT COUNT(*) as count FROM permission_cards")['count']
+        permissions_count = db.fetch_one("SELECT COUNT(*) as count FROM card_permissions")['count']
+        role_perms_count = db.fetch_one("SELECT COUNT(*) as count FROM role_permissions")['count']
+
         print(f"Migration completed successfully!")
         print(f"Modules: {modules_count}")
         print(f"Menus: {menus_count}")
         print(f"Cards: {cards_count}")
         print(f"Permissions: {permissions_count}")
         print(f"Role permissions: {role_perms_count}")
-        
-        # Test structure loading
-        from utils.auth.permissions import DatabasePermissionSystem
-        perm_system = DatabasePermissionSystem()
-        structure = perm_system.get_permission_structure_from_db(db)
-        print(f"Structure loaded successfully: {len(structure['modules'])} modules")
         
     except Exception as e:
         print(f"Migration failed: {str(e)}")

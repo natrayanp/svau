@@ -1,6 +1,6 @@
 <script>
   import { page } from '$app/stores';
-  import { isAuthenticated } from '$lib/auth/stores';
+  import { isAuthenticated } from '$lib/auth/authStore';
 </script>
 
 <svelte:head>

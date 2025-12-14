@@ -1,6 +1,6 @@
 <script>
-  import { isAuthenticated } from '$lib/auth/stores';
-  import { authService } from '$lib/auth/auth';
+  import { isAuthenticated } from '$lib/auth/authStore';
+  import { authService } from '$lib/auth/authService';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   

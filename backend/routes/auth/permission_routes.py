@@ -2,14 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any, Optional
 from utils.database.database import DatabaseManager, get_db, DatabaseError
-from utils.auth.middleware import get_current_user
+from  utils.auth.auth_middleware import get_current_user
 from fastapi import Query
 from models.auth_models import (
     UserPermissionsRequest, UserPermissionsResponse, SuccessResponse,
     User, PermissionStructureAPIResponse, RolePermissionsResponse,
     RolePermissionsUpdateRequest, PermissionValidationRequest,
     PermissionValidationResponse, AllowedPermissionsResponse,
-    PowerAnalysisResponse, RoleTemplate
+    PowerAnalysisResponse, RoleTemplate, AuthUser
 )
 from utils.auth.permissions import require_permission_id, CommonPermissionIds, ExplicitPermissionSystem
 from utils.api.response_utils import error_response, success_response
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/auth-api/permissions", tags=["permissions"])
 # --------------------------
 @router.get("/structure", response_model=PermissionStructure)
 async def get_permission_structure(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db)
 ):
     """
@@ -79,7 +79,7 @@ async def get_permission_structure(
 
 @router.get("/users", response_model=PaginatedDataResponse[UserModel])
 async def get_organization_users(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100)
@@ -120,7 +120,7 @@ async def get_organization_users(
 @router.post("/users/create", response_model=PaginatedDataResponse[UserModel])
 async def bulk_create_users(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -211,7 +211,7 @@ async def bulk_create_users(
 @router.put("/users/update", response_model=PaginatedDataResponse[UserModel])
 async def bulk_update_users(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -302,7 +302,7 @@ async def bulk_update_users(
 @router.delete("/users/delete", response_model=PaginatedDataResponse[UserModel])
 async def bulk_delete_users(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -393,7 +393,7 @@ async def bulk_delete_users(
 @router.get("/users/{user_id}/details")
 async def get_user_details(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db)
 ):
     """Get detailed information for a specific user."""
@@ -421,7 +421,7 @@ async def get_user_details(
 @router.get("/users/{user_id}/power-analysis")
 async def get_user_power_analysis(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db)
 ):
     """Get power analysis for a user based on assigned roles."""
@@ -451,7 +451,7 @@ async def search_users(
     search: str = Query(..., min_length=1, description="Search term for name, email, or UID"),
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db)
 ):
     """Search users within the organization."""
@@ -489,7 +489,7 @@ async def search_users(
 # ----------------------------------------------------
 @router.get("/roles", response_model=PaginatedDataResponse[Role])
 async def get_organization_roles(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100)
@@ -537,7 +537,7 @@ async def get_organization_roles(
 @router.put("/roles/update", response_model=PaginatedDataResponse[Role])
 async def update_organization_roles(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -623,7 +623,7 @@ async def update_organization_roles(
 @router.post("/roles/create", response_model=PaginatedData[Role])
 async def bulk_create_organization_roles(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -758,7 +758,7 @@ async def bulk_create_organization_roles(
 @router.delete("/roles/delete", response_model=PaginatedData[Role])
 async def bulk_delete_organization_roles(
     request_body: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: DatabaseManager = Depends(get_db),
 ):
     """
@@ -874,7 +874,7 @@ async def bulk_delete_organization_roles(
 @router.post("/validate-child-permissions")
 async def validate_child_permissions(
     validation_data: PermissionValidationRequest,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
     db = Depends(get_db)
 ):
     """Validate if child permissions are allowed by parent constraints - accepts string IDs"""
@@ -894,7 +894,7 @@ async def validate_child_permissions(
 @router.get("/allowed-child-permissions")
 async def get_allowed_child_permissions(
     parent_permission_ids: str,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
     db = Depends(get_db)
 ):
     """Get permissions that children can have based on parent's max power - accepts string IDs"""
@@ -924,7 +924,7 @@ async def get_allowed_child_permissions(
 @router.post("/check/{permission_id}")
 async def check_permission(
     permission_id: int,  # Backend uses int for permission dependencies
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Check if current user has a specific permission by ID - backend uses int"""
@@ -945,7 +945,7 @@ async def check_permission(
 @router.post("/check-power/{required_power}")
 async def check_power_level(
     required_power: int,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Check if current user has sufficient power level"""
@@ -968,7 +968,7 @@ async def check_power_level(
 @router.get("/templates")
 async def get_role_templates(
     template_keys: Optional[str] = None,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
     db = Depends(get_db)
 ):
     """Get role templates - all, single, or multiple templates with organization filtering"""
@@ -1022,7 +1022,7 @@ async def get_role_templates(
 @router.get("/templates/{template_key}")
 async def get_role_template_by_key(
     template_key: str,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.USER_VIEW)),
     db = Depends(get_db)
 ):
     """Get specific role template details by template key"""
@@ -1062,7 +1062,7 @@ async def get_role_template_by_key(
 # ============ SYSTEM & AUDIT ENDPOINTS ============
 @router.get("/analysis/system")
 async def get_system_power_analysis(
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
     db = Depends(get_db)
 ):
     """Get system-wide power analysis - uses string IDs"""
@@ -1178,7 +1178,7 @@ async def health_check(db = Depends(get_db)):
 
 @router.get("/quick-actions")
 async def get_quick_actions(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Get quick actions available to the current user"""
@@ -1275,7 +1275,7 @@ async def get_permission_audit_logs(
     user_id: Optional[int] = None,
     role_name: Optional[str] = None,
     action_type: Optional[str] = None,
-    current_user: User = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
+    current_user: AuthUser = Depends(require_permission_id(CommonPermissionIds.ADMIN_ACCESS)),
     db = Depends(get_db)
 ):
     """Get permission audit logs with filtering"""

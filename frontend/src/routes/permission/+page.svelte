@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { isAuthenticated, user } from '$lib/auth/stores';
+	//import { isAuthenticated, user } from '$lib/auth/authStore';
 
 	// Global read-only stores
 	import {
@@ -9,8 +9,8 @@
 		permissionStructureStore
 	} from '$lib/permission/stores/permission_readonly_stores';
 
-	import { userPowerLevel, userMaxPower } from '$lib/permission/stores_permission';
-	import { PermissionUtils } from '$lib/permission/utils_permission';
+	//import { userPowerLevel, userMaxPower } from '$lib/permission/stores_permission';
+	//import { PermissionUtils } from '$lib/permission/utils_permission';
 
 	// Child components
 	import UserDirectory from '$lib/permission/components/UserDirectory.svelte';
@@ -178,6 +178,50 @@
 		roleManagementView = 'list';
 	}
 
+	// UI Helpers
+  function getModuleIcon(module) {
+    return module.icon || '📁';
+  }
+
+  function getMenuIcon(menu) {
+    return menu.icon || '📋';
+  }
+
+  function getCardIcon(card) {
+    return card.icon || '🃏';
+  }
+
+  function getPermissionIcon(permission){
+    if (permission.icon) {
+      return permission.icon;
+    }
+
+    const iconsy = {
+      view: '👁️',
+      create: '➕',
+      edit: '✏️',
+      delete: '🗑️',
+      manage: '⚙️',
+      admin: '👑',
+      analytics: '📊',
+      export: '📤',
+      import: '📥',
+      settings: '⚙️',
+      notifications: '🔔',
+      mobile: '📱',
+      search: '🔍',
+      tags: '🏷️',
+      categories: '📁',
+      browse: '🔍',
+      bookmark: '🔖',
+      profiles: '👤',
+      access: '🔒',
+      configure: '🔧',
+      filter: '🔧'
+    };
+    return icons[permission.permission_action] || '🔹';
+  }
+
 	/* ----------------------------------------------------------
      Other helpers
   ----------------------------------------------------------- */
@@ -206,8 +250,10 @@
 					<div class="text-sm text-gray-500">Your Access Level</div>
 					<div class="flex items-center space-x-2">
 						<div class="w-2 h-2 lg:w-3 lg:h-3 bg-green-500 rounded-full animate-pulse"></div>
-						<span class="font-semibold text-gray-900 text-sm lg:text-base">{$userPowerLevel}</span>
-						<span class="text-sm text-gray-500">({$userMaxPower}/100)</span>
+						<!--span class="font-semibold text-gray-900 text-sm lg:text-base">{$userPowerLevel}</span-->
+						<span class="font-semibold text-gray-900 text-sm lg:text-base">30</span>
+						<!--span class="text-sm text-gray-500">({$userMaxPower}/100)</span-->
+						<span class="text-sm text-gray-500">(30/100)</span>
 					</div>
 				</div>
 			</div>
@@ -490,7 +536,7 @@
 														<div
 															class="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg group-hover:scale-110 transition-transform duration-200"
 														>
-															{PermissionUtils.getModuleIcon(module)}
+															{getModuleIcon(module)}
 														</div>
 														<div>
 															<h3

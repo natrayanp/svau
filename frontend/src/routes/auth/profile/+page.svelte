@@ -1,5 +1,5 @@
 <script>
-  import { user } from '$lib/auth/stores';
+  import { authUser } from '$lib/auth/authStore';
   import { authApi } from '$lib/auth/AuthApi';
   
   let currentUser;
@@ -9,7 +9,7 @@
   };
   let message = '';
   
-  user.subscribe(value => {
+  authUser.subscribe(value => {
     currentUser = value;
     if (value) {
       profile.displayName = value.displayName || '';

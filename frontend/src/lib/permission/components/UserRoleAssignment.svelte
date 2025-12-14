@@ -3,7 +3,7 @@
 	import { UserUpdatePayload, User } from '$lib/permission/stores/types_permission';
 	import { usersStore, rolesStore } from '$lib/permission/stores/permission_entity_stores';
 	import { useMutations, useLookup } from '$lib/common/controls';
-	import { PermissionUtils } from '$lib/permission/utils_permission';
+
 
 	// Props
 	export let userIds: string[] = [];
@@ -161,6 +161,13 @@
 			initializeSelectedUsers();
 		}
 	});
+
+	function getPowerLevelIcon(powerLevel) {
+    if (powerLevel <= 30) return '🟢';
+    if (powerLevel <= 60) return '🟡';
+    if (powerLevel <= 80) return '🟠';
+    return '🔴';
+  }
 
 	async function initializeSelectedUsers() {
 		if (mode === 'maintenance') {
@@ -454,10 +461,6 @@
 			selectedRoles = new Set();
 		}
 		onCancel?.();
-	}
-
-	function getPowerLevelIcon(power: number) {
-		return PermissionUtils.getPowerLevelIcon(power);
 	}
 
 	function getRiskColorClass(level: string) {

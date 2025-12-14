@@ -196,3 +196,48 @@ CREATE INDEX idx_roles_org_id ON roles(org_id);
 CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
 CREATE INDEX idx_permission_structures_key ON permission_structures(key);
 
+
+-- TOKEN AND DEVICE TABLES
+
+-- Required tables for PostgreSQL storage
+CREATE TABLE token_blacklist (
+    jti VARCHAR(255) PRIMARY KEY,
+    user_id UUID NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    blacklisted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    INDEX idx_user_id (user_id),
+    INDEX idx_expires (expires_at)
+);
+
+CREATE TABLE refresh_tokens (
+    jti VARCHAR(255) PRIMARY KEY,
+    user_id UUID NOT NULL,
+    device_fp VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    INDEX idx_user_id (user_id),
+    INDEX idx_device_fp (device_fp),
+    INDEX idx_expires (expires_at)
+);
+
+CREATE TABLE user_devices (
+    user_id UUID NOT NULL,
+    device_fp VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    metadata JSONB,
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, device_fp),
+    INDEX idx_expires (expires_at)
+);
+
+-- Create cleanup function
+CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM token_blacklist WHERE expires_at <= NOW();
+    DELETE FROM refresh_tokens WHERE expires_at <= NOW();
+    DELETE FROM user_devices WHERE expires_at <= NOW();
+END;
+$$ LANGUAGE plpgsql;

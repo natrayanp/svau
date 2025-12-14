@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 from utils.database import get_db
-from utils.auth.middleware import get_current_user
+from  utils.auth.auth_middleware import get_current_user
 from utils.auth.permissions import require_permission_id, CommonPermissionIds
 from models.auth_models import SuccessResponse, User
 from utils.database.query_manager import permission_query

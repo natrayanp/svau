@@ -8,7 +8,7 @@
 	// Props
 	export let isViewMode = false;
 	export let selectedPermissions: { permissstruct_id: string; granted_action_key: string[] }[] = [];
-	export let originalPermissions: { permissstruct_id: string; granted_action_key: string[] }[] = [];
+	export const originalPermissions: { permissstruct_id: string; granted_action_key: string[] }[] = [];
 	export let onPermissionsChange: (
 		p: { permissstruct_id: string; granted_action_key: string[] }[]
 	) => void = () => {};
