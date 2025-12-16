@@ -2,7 +2,8 @@
 
 from typing import Optional
 import logging
-from utils.database.database import DatabaseManager, get_db, DatabaseError
+from utils.database.database import get_db
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class AppException(Exception):
         message: Optional[str] = None,
         details: Optional[str] = None,
         status_code: int = 400,
-        db: DatabaseManager = None
+        db = None
     ):
         self.code = code
         self.details = details
@@ -47,11 +48,13 @@ class AppException(Exception):
                 else:
                     # fallback generic message
                     self.message = "An error occurred"
-            except DatabaseError as e:
-                logger.error(f"DB error fetching error message for code {code}: {e}")
-                self.message = "An error occurred"
+  
+
             except Exception as e:
                 logger.exception(f"Unexpected error fetching error message for code {code}: {e}")
                 self.message = "An error occurred"
-
+                
+            """except DatabaseError as e:
+                logger.error(f"DB error fetching error message for code {code}: {e}")
+                self.message = "An error occurred"""
         super().__init__(self.message)

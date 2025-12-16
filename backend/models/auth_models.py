@@ -139,14 +139,30 @@ class UserBase(BaseModel):
     display_name: Optional[str] = None
     role: UserRole = UserRole.BASIC
 
-class UserCreate(UserBase):
-    uid: str
-    email_verified: bool = False
 
-class UserUpdate(BaseModel):
-    display_name: Optional[str] = None
-    role: Optional[UserRole] = None
-    email_verified: Optional[bool] = None
+# If your OrganizationData model looks like this:
+class OrganizationData(BaseModel):
+    type: str  # "join" or "create"
+    id: Optional[str] = None  # For joining
+    name: Optional[str] = None  # For creating
+
+class UserCreate(BaseModel):
+    # Common fields
+    uid: Optional[str] = None  # Not needed for Google, required for email/password
+    email: Optional[EmailStr] = None  # Will be extracted from Firebase token for Google
+    display_name: Optional[str] = Field(..., max_length=100)
+    email_verified: bool = False
+    
+    # For Google registration
+    firebase_token: Optional[str] = None
+    
+    # Organization data (for both registration types)
+    organization_data: Optional[OrganizationData] = None
+    
+    # For email/password registration
+    password: Optional[str] = Field(None, min_length=6, max_length=100)
+
+
 
 class UserResponse(UserBase):
     id: int          # Internal ID remains int
@@ -165,6 +181,12 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+class ResponseMessage(BaseModel):
+    message: str
+    Success: Optional[bool] = True
+    Error: Optional[str] = None
+    detail: Optional[str] = None
 
 class SuccessResponse(BaseModel):
     success: bool

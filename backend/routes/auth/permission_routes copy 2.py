@@ -5,18 +5,17 @@ from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from utils.database.database import get_db
+from backend.utils.database.database import get_db
 from utils.database.database_async_core import AsyncDatabaseManager
 from utils.database.query_manager import permission_query
 from utils.auth.auth_middleware import get_current_user
-#from utils.auth.permissions import require_permission_id, CommonPermissionIds, ExplicitPermissionSystem
+from utils.auth.permissions import require_permission_id, CommonPermissionIds, ExplicitPermissionSystem
 from utils.api.response_utils import error_response, success_response
 from utils.appwide.errors import AppException
 
 from models.auth_models import AuthUser
 from models.permission_models import PermissionStructure, UserModel, Role
 from models.api_models import PaginatedDataResponse, PaginatedData
-from dependencies.system_entities import get_system_entities, SystemEntities
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ async def get_organization_users(
     try:
         from routes.auth.services.user_service import UserService
 
-        user_service = UserService(db,SystemEntities)
+        user_service = UserService(db)
 
         result = await user_service.get_organization_users(
             current_user_id=current_user.user_id,
@@ -104,7 +103,7 @@ async def create_users(
     try:
         from routes.auth.services.user_service import UserService
 
-        user_service = UserService(db,SystemEntities)
+        user_service = UserService(db)
 
         org_id, _ = await user_service.get_user_organization(current_user.user_id)
 
@@ -166,7 +165,7 @@ async def bulk_update_users(
     try:
         from routes.auth.services.user_service import UserService
 
-        user_service = UserService(db,SystemEntities)
+        user_service = UserService(db)
 
         org_id, _ = await user_service.get_user_organization(current_user.user_id)
 
@@ -228,7 +227,7 @@ async def bulk_delete_users(
     try:
         from routes.auth.services.user_service import UserService
 
-        user_service = UserService(db,SystemEntities)
+        user_service = UserService(db)
 
         org_id, _ = await user_service.get_user_organization(current_user.user_id)
 
@@ -289,6 +288,100 @@ async def bulk_delete_users(
             code="BULK_USER_DELETE_ERROR",
         )
 
+
+@router.get("/users/{user_id}/details")
+async def get_user_details(
+    user_id: int,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get detailed information for a specific user."""
+    try:
+        from routes.auth.services.user_service import UserService
+
+        user_service = UserService(db)
+
+        result = await user_service.get_user_details(
+            user_id=user_id,
+            requesting_user_id=current_user.user_id,
+        )
+
+        return result
+
+    except AppException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error getting user details: {e}")
+        raise AppException(
+            message="Failed to get user details",
+            code="USER_DETAILS_ERROR",
+        )
+
+
+@router.get("/users/{user_id}/power-analysis")
+async def get_user_power_analysis(
+    user_id: int,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get power analysis for a user based on assigned roles."""
+    try:
+        from routes.auth.services.user_service import UserService
+
+        user_service = UserService(db)
+
+        result = await user_service.get_user_power_analysis(
+            user_id=user_id,
+            requesting_user_id=current_user.user_id,
+        )
+
+        return result
+
+    except AppException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in power analysis: {e}")
+        raise AppException(
+            message="Failed to analyze user power",
+            code="POWER_ANALYSIS_ERROR",
+        )
+
+
+@router.get("/users/search")
+async def search_users(
+    search: str = Query(..., min_length=1, description="Search term for name, email, or UID"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Search users within the organization."""
+    try:
+        from routes.auth.services.user_service import UserService
+
+        user_service = UserService(db)
+
+        org_id, _ = await user_service.get_user_organization(current_user.user_id)
+
+        result = await user_service.search_users(
+            org_id=org_id,
+            search_term=search,
+            offset=offset,
+            limit=limit,
+        )
+
+        return result
+
+    except AppException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error searching users: {e}")
+        raise AppException(
+            message="Failed to search users",
+            code="USER_SEARCH_ERROR",
+        )
+
+
 # ----------------------------------------------------
 # ORGANIZATION ROLES ENDPOINT -- START
 # ----------------------------------------------------
@@ -306,7 +399,7 @@ async def get_organization_roles(
     try:
         from routes.auth.services.role_service import RoleService
 
-        role_service = RoleService(db,SystemEntities)
+        role_service = RoleService(db)
 
         role_data = await role_service.get_role_for_organisation(
             current_user.user_id, offset, limit
@@ -356,7 +449,7 @@ async def update_organization_roles(
     try:
         from routes.auth.services.role_service import RoleService
 
-        role_service = RoleService(db,SystemEntities)
+        role_service = RoleService(db)
 
         org_id, _ = await role_service.get_user_organization(current_user.user_id)
 
@@ -420,7 +513,7 @@ async def bulk_create_organization_roles(
     try:
         from routes.auth.services.role_service import RoleService
 
-        role_service = RoleService(db,SystemEntities)
+        role_service = RoleService(db)
 
         org_id, _ = await role_service.get_user_organization(current_user.user_id)
 
@@ -518,7 +611,7 @@ async def bulk_delete_organization_roles(
     try:
         from routes.auth.services.role_service import RoleService
 
-        role_service = RoleService(db,SystemEntities)
+        role_service = RoleService(db)
 
         org_id, _ = await role_service.get_user_organization(current_user.user_id)
 
@@ -595,6 +688,334 @@ async def bulk_delete_organization_roles(
             message="Failed to delete roles in bulk",
             code="BULK_ROLE_DELETE_ERROR",
         )
+
+
+# ============ PERMISSION VALIDATION ============
+@router.post("/validate-child-permissions")
+async def validate_child_permissions(
+    validation_data,
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.ADMIN_ACCESS)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Validate if child permissions are allowed by parent constraints - accepts string IDs"""
+    try:
+        perm_system = ExplicitPermissionSystem()
+
+        result = perm_system.validate_child_permissions(
+            validation_data.parent_permission_ids,
+            validation_data.child_permission_ids,
+            db,
+        )
+
+        return success_response(result, "Permission validation completed")
+    except Exception as e:
+        return error_response(f"Failed to validate permissions: {str(e)}")
+
+
+@router.get("/allowed-child-permissions")
+async def get_allowed_child_permissions(
+    parent_permission_ids: str,
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.ADMIN_ACCESS)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get permissions that children can have based on parent's max power - accepts string IDs"""
+    try:
+        parent_ids = [
+            id.strip() for id in parent_permission_ids.split(",") if id.strip()
+        ]
+
+        if not parent_ids:
+            return error_response("No parent permission IDs provided")
+
+        perm_system = ExplicitPermissionSystem()
+        allowed_permissions = perm_system.get_allowed_child_permissions(
+            parent_ids, db
+        )
+        max_parent_power = perm_system.get_max_power_from_permissions(
+            parent_ids, db
+        )
+
+        response_data = {
+            "allowed_permissions": allowed_permissions,
+            "max_parent_power": max_parent_power,
+        }
+
+        return success_response(response_data, "Allowed child permissions retrieved")
+    except ValueError:
+        return error_response("Invalid permission ID format")
+    except Exception as e:
+        return error_response(f"Failed to get allowed permissions: {str(e)}")
+
+
+# ============ PERMISSION CHECKING ============
+@router.post("/check/{permission_id}")
+async def check_permission(
+    permission_id: int,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Check if current user has a specific permission by ID - backend uses int"""
+    try:
+        perm_system = ExplicitPermissionSystem()
+        user_permission_ids = perm_system.get_user_permission_ids_with_roles(
+            current_user.id, db
+        )
+
+        permission_id_str = str(permission_id)
+
+        if perm_system.check_permission_by_id(user_permission_ids, permission_id_str):
+            return success_response(message="Permission granted")
+        else:
+            return error_response("Permission denied")
+    except Exception as e:
+        return error_response(f"Failed to check permission: {str(e)}")
+
+
+@router.post("/check-power/{required_power}")
+async def check_power_level(
+    required_power: int,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Check if current user has sufficient power level"""
+    try:
+        if required_power < 0 or required_power > 100:
+            return error_response("Power level must be between 0 and 100")
+
+        perm_system = ExplicitPermissionSystem()
+
+        if perm_system.can_user_access_power_level(
+            current_user.id, required_power, db
+        ):
+            return success_response(
+                message=f"Power level {required_power} granted"
+            )
+        else:
+            user_max_power = perm_system.get_user_max_power(current_user.id, db)
+            return error_response(
+                f"Insufficient power level. Required: {required_power}, Your max: {user_max_power}"
+            )
+    except Exception as e:
+        return error_response(f"Failed to check power level: {str(e)}")
+
+
+# ============ ROLE TEMPLATES ============
+@router.get("/templates")
+async def get_role_templates(
+    template_keys: Optional[str] = None,
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.USER_VIEW)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get role templates - all, single, or multiple templates with organization filtering"""
+    try:
+        template_list = None
+        if template_keys:
+            template_list = [
+                key.strip()
+                for key in template_keys.split(",")
+                if key.strip()
+            ]
+
+        if template_list is None:
+            result = await db.fetch_one_async(
+                permission_query("GET_ALL_ROLE_TEMPLATES"),
+                {"user_id": current_user.id},
+            )
+            message = "All role templates loaded successfully"
+
+        elif len(template_list) == 1:
+            result = await db.fetch_one_async(
+                permission_query("GET_SINGLE_ROLE_TEMPLATE"),
+                {"user_id": current_user.id, "template_key": template_list[0]},
+            )
+            message = f"Template '{template_list[0]}' loaded successfully"
+
+        else:
+            result = await db.fetch_one_async(
+                permission_query("GET_MULTIPLE_ROLE_TEMPLATES"),
+                {"user_id": current_user.id, "template_keys": template_list},
+            )
+            message = f"{len(template_list)} templates loaded successfully"
+
+        if result:
+            return success_response(result, message)
+        else:
+            return success_response(
+                {"templates": [], "summary": {"total_templates": 0}},
+                "No templates found for your organization",
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to load role templates: {str(e)}")
+        return error_response(f"Failed to load role templates: {str(e)}")
+
+
+@router.get("/templates/{template_key}")
+async def get_role_template_by_key(
+    template_key: str,
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.USER_VIEW)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get specific role template details by template key"""
+    try:
+        template_result = await db.fetch_one_async(
+            permission_query("GET_SINGLE_ROLE_TEMPLATE"),
+            {"user_id": current_user.id, "template_key": template_key},
+        )
+
+        if not template_result or not template_result.get("template"):
+            return error_response(
+                f"Template '{template_key}' not found or not accessible"
+            )
+
+        usage_stats = await db.fetch_one_async(
+            permission_query("GET_TEMPLATE_USAGE_STATS_BY_KEY"),
+            {"template_key": template_key},
+        )
+
+        response_data = {
+            "template": template_result["template"],
+            "usage_stats": usage_stats or {},
+        }
+
+        return success_response(
+            response_data, f"Template '{template_key}' loaded successfully"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to load template {template_key}: {str(e)}")
+        return error_response(f"Failed to load template: {str(e)}")
+
+
+# ============ SYSTEM & AUDIT ENDPOINTS ============
+@router.get("/analysis/system")
+async def get_system_power_analysis(
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.ADMIN_ACCESS)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get system-wide power analysis - uses string IDs"""
+    try:
+        perm_system = ExplicitPermissionSystem()
+
+        roles = ["basic", "creator", "moderator", "admin"]
+        role_analysis = []
+
+        for role in roles:
+            analysis = perm_system.get_role_power_analysis(role, db)
+            role_analysis.append(analysis)
+
+        overall_distribution = {
+            "low": sum(role["power_distribution"]["low"] for role in role_analysis),
+            "medium": sum(role["power_distribution"]["medium"] for role in role_analysis),
+            "high": sum(role["power_distribution"]["high"] for role in role_analysis),
+            "critical": sum(role["power_distribution"]["critical"] for role in role_analysis),
+        }
+
+        user_stats = await db.fetch_one_async(
+            "SELECT COUNT(*) as total_users, "
+            "AVG(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_at))/86400) as avg_account_age "
+            "FROM users"
+        )
+
+        high_power_roles = [role for role in role_analysis if role["max_power"] > 80]
+
+        role_permissions_dict = {}
+        for role in roles:
+            role_permissions_dict[role] = perm_system.db_system.get_role_permissions_from_db(role, db)
+
+        potential_conflicts = perm_system.find_permission_conflicts(role_permissions_dict, db)
+
+        analysis_data = {
+            "overall_power_distribution": overall_distribution,
+            "role_analysis": role_analysis,
+            "risk_assessment": {
+                "high_risk_roles": [role["role"] for role in high_power_roles],
+                "potential_conflicts": [conflict["message"] for conflict in potential_conflicts],
+                "recommendations": [
+                    "Regularly review high-power role assignments",
+                    "Monitor permission conflicts between roles",
+                    "Implement least privilege principle",
+                ],
+            },
+            "system_metrics": {
+                "total_roles": len(roles),
+                "total_users": user_stats["total_users"] if user_stats else 0,
+                "avg_account_age_days": round(user_stats["avg_account_age"], 2) if user_stats else 0,
+            },
+        }
+
+        return success_response(analysis_data, "System power analysis completed")
+    except Exception as e:
+        return error_response(f"Failed to generate system analysis: {str(e)}")
+
+
+@router.get("/health")
+async def health_check(
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """System health check"""
+    try:
+        db_status = (await db.fetch_one_async("SELECT 1 as status")) is not None
+
+        tables_to_check = ["users", "user_permissions", "permissions", "role_permissions"]
+        table_status: Dict[str, bool] = {}
+
+        for table in tables_to_check:
+            try:
+                result = await db.fetch_one_async(
+                    f"SELECT COUNT(*) as count FROM {table}"
+                )
+                table_status[table] = result is not None
+            except Exception:
+                table_status[table] = False
+
+        try:
+            user_count = await db.fetch_one_async(
+                "SELECT COUNT(*) as count FROM users"
+            )
+            permission_count = await db.fetch_one_async(
+                "SELECT COUNT(*) as count FROM permissions"
+            )
+            role_count = await db.fetch_one_async(
+                "SELECT COUNT(DISTINCT role_id) as count FROM role_permissions"
+            )
+
+            metrics = {
+                "total_users": user_count["count"] if user_count else 0,
+                "total_permissions": permission_count["count"] if permission_count else 0,
+                "total_roles": role_count["count"] if role_count else 0,
+                "active_sessions": 0,
+            }
+        except Exception:
+            metrics = {"error": "Failed to fetch metrics"}
+
+        overall_status = "healthy" if db_status and all(table_status.values()) else "degraded"
+
+        health_data = {
+            "status": overall_status,
+            "services": {
+                "database": db_status,
+                "cache": True,
+                "messaging": True,
+            },
+            "tables": table_status,
+            "metrics": metrics,
+            "last_updated": datetime.utcnow().isoformat(),
+        }
+
+        return success_response(health_data, "Health check completed")
+    except Exception as e:
+        return error_response(f"Health check failed: {str(e)}")
 
 
 @router.get("/quick-actions")
@@ -686,3 +1107,106 @@ async def get_quick_actions(
         )
     except Exception as e:
         return error_response(f"Failed to get quick actions: {str(e)}")
+
+
+@router.get("/audit/logs")
+async def get_permission_audit_logs(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role_name: Optional[str] = None,
+    action_type: Optional[str] = None,
+    current_user: AuthUser = Depends(
+        require_permission_id(CommonPermissionIds.ADMIN_ACCESS)
+    ),
+    db: AsyncDatabaseManager = Depends(get_db),
+):
+    """Get permission audit logs with filtering"""
+    try:
+        base_query = """
+            SELECT 
+                pa.*,
+                u1.display_name as performed_by_name,
+                u2.display_name as target_user_name,
+                p.display_name as permission_name
+            FROM permission_audit pa
+            LEFT JOIN users u1 ON pa.performed_by = u1.id
+            LEFT JOIN users u2 ON pa.user_id = u2.id
+            LEFT JOIN permissions p ON pa.permission_id = p.id
+            WHERE 1=1
+        """
+        params: List[Any] = []
+
+        if start_date:
+            base_query += " AND pa.performed_at >= $1"
+            params.append(start_date)
+
+        if end_date:
+            placeholder = f"${len(params)+1}"
+            base_query += f" AND pa.performed_at <= {placeholder}"
+            params.append(end_date)
+
+        if user_id:
+            placeholder = f"${len(params)+1}"
+            base_query += f" AND pa.user_id = {placeholder}"
+            params.append(user_id)
+
+        if role_name:
+            placeholder = f"${len(params)+1}"
+            base_query += f" AND pa.action LIKE {placeholder}"
+            params.append(f"%{role_name}%")
+
+        if action_type:
+            placeholder = f"${len(params)+1}"
+            base_query += f" AND pa.action LIKE {placeholder}"
+            params.append(f"%{action_type}%")
+
+        base_query += " ORDER BY pa.performed_at DESC LIMIT 1000"
+
+        logs = await db.fetch_all_async(base_query, None if not params else {
+            # asyncpg prepared statements with positional params: we already used $n
+            # but our db wrapper expects dict; you can adapt to list in db layer if needed
+        })
+
+        # NOTE: Since your async DB wrapper is dict-based, you may want to move this
+        # raw SQL into a named query in `permission_query` to keep consistency.
+
+        formatted_logs = []
+        for log in logs:
+            formatted_logs.append(
+                {
+                    "id": log["id"],
+                    "timestamp": log["performed_at"].isoformat()
+                    if hasattr(log["performed_at"], "isoformat")
+                    else str(log["performed_at"]),
+                    "user_id": log["user_id"],
+                    "username": log["target_user_name"],
+                    "action": log["action"],
+                    "target_type": "user_permission"
+                    if log["permission_id"]
+                    else "user_role",
+                    "target_id": log["permission_id"] or log["user_id"],
+                    "target_name": log["permission_name"] or "Role Change",
+                    "details": {
+                        "performed_by": log["performed_by_name"],
+                        "performed_by_id": log["performed_by"],
+                    },
+                    "ip_address": "N/A",
+                }
+            )
+
+        response_data = {
+            "logs": formatted_logs,
+            "total_logs": len(formatted_logs),
+            "filters_applied": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "user_id": user_id,
+                "role_name": role_name,
+                "action_type": action_type,
+            },
+        }
+
+        return success_response(response_data, "Audit logs loaded")
+    except Exception as e:
+        return error_response(f"Failed to get audit logs: {str(e)}")

@@ -31,11 +31,18 @@ export interface FirebaseLoginRequest {
 
 // Backend UserCreate model
 export interface UserCreateBackend {
-  uid: string;
-  email: string;
-  display_name: string;
-  role: string;
-  email_verified: boolean;
+  uid?: string;
+  email?: string;
+  display_name?: string;
+  email_verified?: boolean;
+  org_id?: string;
+  org_name?: string;
+  firebase_token?: string;
+  organization_data?: {
+    type: 'join' | 'create';
+    id?: string;      // For joining existing org
+    name?: string;    // For creating new org
+  };
 }
 
 // Frontend UserCreate model (for your convenience)

@@ -1,115 +1,95 @@
-# routers/auth.py
 from datetime import datetime
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator, EmailStr
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from pydantic import BaseModel, Field
 from slowapi.errors import RateLimitExceeded
 
 from utils.auth.jwt_utils import get_jwt_manager
-from utils.database import get_db
-from utils.auth.firebase_utils import firebase_manager
-from utils.auth.jwt_utils import jwt_manager
-from  utils.auth.auth_middleware import get_current_user
+from utils.database.database import get_db
+from utils.auth.auth_manager import get_auth_manager
+from utils.auth.auth_middleware import get_current_user
 from models.auth_models import (
-    LoginRequest, TokenResponse, UserCreate, UserResponse, 
-    SuccessResponse, ErrorResponse, UserRole, AuthUser
+    LoginRequest, TokenResponse, UserCreate, UserResponse,
+    SuccessResponse, ResponseMessage, UserRole, AuthUser
 )
 from utils.database.query_manager import permission_query
+from utils.appwide.rate_limiter import limiter
+
+from routes.auth.services.user_service import UserService
+from routes.auth.services.organization_service import OrganizationService
+from dependencies.system_entities import get_system_entities, SystemEntities
+
+
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Rate limiter
-limiter = Limiter(key_func=lambda r: r.client.host)
-
 router = APIRouter(prefix="/auth-api", tags=["authentication"])
 
 
-# Exception handler for rate limiting
-"""
-@router.exception_handler(RateLimitExceeded)
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={
-            "success": False,
-            "message": "Too many requests. Please try again later.",
-            "error": {"code": "rate_limit_exceeded", "details": f"Retry after {exc.retry_after} seconds"}
-        }
-    )
-"""
-# Request models with validation
+# --------------------------
+# Request Models
+# --------------------------
+
 class UserUpdateRequest(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=100)
     role: Optional[UserRole] = None
     email_verified: Optional[bool] = None
-    
+
     class Config:
         use_enum_values = True
 
-# --------------------------
-# Authentication Endpoints
-# --------------------------
-# routers/auth.py
 
-
+# --------------------------
+# LOGIN
+# --------------------------
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 async def login(
     request: Request,
     login_data: LoginRequest,
     response: Response,
-    db=Depends(get_db),
+    db = Depends(get_db),
 ):
-    """Login with Firebase token"""
     try:
-        firebase_user = firebase_manager.verify_firebase_token(
-            login_data.firebase_token
-        )
-        user = await db.fetch_one(
-            permission_query("GET_USER_BY_UID"), (firebase_user["uid"],)
+        auth_manager = get_auth_manager()
+        auth_user = auth_manager.verify_token(login_data.firebase_token)
+
+        user = await db.fetch_one_async(
+            permission_query("GET_USER_BY_UID"),
+            {"uid": auth_user.provider_id}
         )
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not registered",
-            )
+            raise HTTPException(404, "User not registered")
 
         if not user.get("is_active", True):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Account is disabled",
-            )
+            raise HTTPException(401, "Account is disabled")
 
-        # Update last login (not critical for auth invariants)
+        # Update last login
         try:
-            await db.execute_update(
+            """await db.execute_async(
                 permission_query("UPDATE_USER_LAST_LOGIN"),
-                (datetime.utcnow(), user["id"]),
-            )
+                {
+                    "last_login": datetime.utcnow(),
+                    "user_id": user["id"]
+                }
+            )"""
         except Exception:
             logger.exception("Failed to update last login")
 
         jwt_manager = get_jwt_manager()
 
-        # Create refresh token first (enforces stateful invariant)
         refresh_token, refresh_jti = await jwt_manager.create_refresh_token(
-            user_data=user,
-            request=request,
+            user_data=user, request=request
         )
 
-        # Create access token bound to that refresh_jti
-        access_token, _access_jti = await jwt_manager.create_access_token(
-            user_data=user,
-            request=request,
-            refresh_jti=refresh_jti,
+        access_token, _ = await jwt_manager.create_access_token(
+            user_data=user, request=request, refresh_jti=refresh_jti
         )
 
-        # Set refresh token cookie
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
@@ -129,307 +109,364 @@ async def login(
         raise
     except Exception:
         logger.exception("Login error")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication failed",
-        )
+        raise HTTPException(500, "Authentication failed")
 
-@router.post("/register", response_model=UserResponse)
+
+# --------------------------
+# REGISTER
+# --------------------------
+@router.post("/register", response_model=ResponseMessage)
 @limiter.limit("3/minute")
 async def register(
     request: Request,
     user_data: UserCreate,
-    db = Depends(get_db)
+    db = Depends(get_db),
+    system: SystemEntities = Depends(get_system_entities)
 ):
-    """Register a new user (explicit registration required)"""
+    """
+    Register a new user with full atomic transaction.
+    Supports:
+    - Firebase registration
+    - Email/password registration
+    - Optional organization creation or joining
+    """
+
     try:
-        # Check if user already exists
-        existing_user = await db.fetch_one(
+        # -------------------------------------------------
+        # Extract identity (Firebase or Email/Password)
+        # -------------------------------------------------
+        uid = None
+        email = None
+        display_name = None
+        email_verified = False
+
+        if user_data.firebase_token:
+            auth_manager = get_auth_manager()
+            firebase_user = auth_manager.verify_token(user_data.firebase_token)
+
+            uid = firebase_user.provider_id
+            email = firebase_user.email
+            display_name = user_data.display_name or firebase_user.display_name
+            email_verified = firebase_user.email_verified
+
+            if user_data.email and user_data.email != email:
+                raise HTTPException(400, "Email mismatch with Firebase token")
+
+        else:
+            if not user_data.uid:
+                raise HTTPException(400, "UID is required for email/password registration")
+
+            uid = user_data.uid
+            email = user_data.email
+            display_name = user_data.display_name
+            email_verified = user_data.email_verified
+
+        # -------------------------------------------------
+        # Duplicate checks
+        # -------------------------------------------------
+        existing_user = await db.fetch_one_async(
             permission_query("GET_USER_BY_UID"),
-            (user_data.uid,)
+            {"uid": uid}
         )
-        
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already registered"
-            )
-        
-        # Check if email already exists
-        existing_email = await db.fetch_one(
+            raise HTTPException(400, "User already registered")
+
+        existing_email = await db.fetch_one_async(
             permission_query("GET_USER_BY_EMAIL"),
-            (user_data.email,)
+            {"email": email}
         )
-        
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+            raise HTTPException(400, "Email already registered")
+
+        # -------------------------------------------------
+        # Build user payload
+        # -------------------------------------------------
+        
+        user_payload = {
+            "uid": uid,
+            "email": email,
+            "display_name": display_name,
+            "email_verified": email_verified,
+            "department": None,
+            "location": None,
+            "status": "AC",
+            "status_effective_from": datetime.utcnow().isoformat(),
+            "roles": None,  # default role
+        }
+
+        # -------------------------------------------------
+        # Build organization payload (optional)
+        # -------------------------------------------------
+        org_payload = None
+        if user_data.organization_data:
+            org_payload = {
+                "type": user_data.organization_data.type,
+                "id": user_data.organization_data.id,
+                "name": user_data.organization_data.name,
+            }
+
+        # -------------------------------------------------
+        # Initialize services
+        # -------------------------------------------------
+        org_service = OrganizationService(db, system)
+        user_service = UserService(db, system)
+
+        # -------------------------------------------------
+        # FULL ATOMIC TRANSACTION
+        # -------------------------------------------------
+        async with db.transaction_async():
+            org_id = None
+
+            # 1. Create or validate organization
+            if org_payload:
+                if org_payload["type"] == "create":
+                    user_payload["roles"] = [str(system.admin_role),str(system.system_role)]
+                    org_id = await org_service.create_organization(
+                        name=org_payload["name"],
+                        created_by=system.system_user  # system user,
+                    )
+                elif org_payload["type"] == "join":
+                    user_payload["roles"] = [str(system.system_role)]
+                    exists = await org_service.get_organization_async(
+                        org_payload["id"], mode="bool"
+                    )
+                    if not exists:
+                        raise HTTPException(400, "Family does not exist")
+                    org_id = org_payload["id"]
+
+            # 2. Create user
+            result = await user_service.bulk_create_users(
+                org_id=org_id,
+                users_data=[user_payload],
+                created_by=system.system_user,
+                org_action = org_payload["type"] if org_payload else "join",
             )
-        
-        # Create user
-        user_id = db.execute_insert(
-            permission_query("CREATE_USER"),
-            (
-                user_data.uid,
-                user_data.email,
-                user_data.display_name,
-                user_data.role.value,
-                user_data.email_verified,
-                datetime.utcnow()  # created_at
-            )
+
+            if not result or result.get("count", 0) == 0:
+                raise HTTPException(400, "User creation failed")
+
+        # -------------------------------------------------
+        # Success
+        # -------------------------------------------------
+        return ResponseMessage(
+            message="User registered successfully",
+            Success=True,
         )
-        
-        # Get created user
-        user = await db.fetch_one(
-            permission_query("GET_USER_BY_ID"),
-            (user_id,)
-        )
-        
-        return UserResponse(**user)
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Registration error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Registration failed. Please try again."
-        )
+        logger.exception(f"Registration error: {e}")
+        raise HTTPException(500, "Registration failed. Please try again.")
 
+
+# --------------------------
+# REFRESH TOKEN
+# --------------------------
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: Request,
     response: Response,
     db = Depends(get_db)
 ):
-    """Refresh access token using refresh token from cookie"""
     try:
-        # Get refresh token from cookie
+        jwt_manager = get_jwt_manager()
+
         refresh_token = request.cookies.get("refresh_token")
-        
         if not refresh_token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token not found"
-            )
-        
-        # Verify refresh token
+            raise HTTPException(401, "Refresh token not found")
+
         try:
-            payload = jwt_manager.verify_token(refresh_token)
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
+            payload = await jwt_manager.verify_token(
+                refresh_token, request, token_type="refresh"
             )
-        
+        except Exception:
+            raise HTTPException(401, "Invalid refresh token")
+
         user_id = payload.get("user_id")
         if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload"
-            )
-        
-        # Check if user still exists
-        user = await db.fetch_one(
+            raise HTTPException(401, "Invalid token payload")
+
+        user = await db.fetch_one_async(
             permission_query("GET_USER_BY_ID"),
-            (user_id,)
+            {"user_id": user_id}
         )
-        
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        # Create new access token
-        access_token = jwt_manager.create_access_token({"user_id": user_id})
-        
-        # Optionally create new refresh token (token rotation)
-        new_refresh_token = jwt_manager.create_refresh_token({"user_id": user_id})
-        
-        # Set new refresh token cookie
+            raise HTTPException(404, "User not found")
+
+        access_token, _ = await jwt_manager.create_access_token(
+            user_data=user, request=request, refresh_jti=payload.get("jti")
+        )
+        new_refresh_token, _ = await jwt_manager.create_refresh_token(
+            user_data=user, request=request
+        )
+
         response.set_cookie(
             key="refresh_token",
             value=new_refresh_token,
             httponly=True,
             secure=True,
             samesite="strict",
-            max_age=7*24*60*60,
+            max_age=jwt_manager.refresh_token_ttl,
             path="/auth-api/refresh"
         )
-        
+
         return TokenResponse(
             access_token=access_token,
-            expires_in=15*60
+            expires_in=jwt_manager.access_token_ttl
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Token refresh error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Token refresh failed"
-        )
+        logger.exception(f"Token refresh error: {e}")
+        raise HTTPException(500, "Token refresh failed")
 
 
-
+# --------------------------
+# LOGOUT
+# --------------------------
 @router.post("/logout", response_model=SuccessResponse)
 async def logout(
     request: Request,
     response: Response,
-    current_user: AuthUser = Depends(get_current_user),  # 
+    current_user: AuthUser = Depends(get_current_user),
 ):
-    """Logout current session/device (not global logout)"""
     try:
+        jwt_manager = get_jwt_manager()
+
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]
 
-            jwt_manager = get_jwt_manager()
             try:
                 payload = await jwt_manager.verify_token(
                     token, request, token_type="access"
                 )
-            except HTTPException as e:
-                # Token invalid/expired – still clear cookie, but log for observability
-                logger.info(
-                    "Logout called with invalid/expired token for user %s: %s",
-                    getattr(current_user, "id", None),
-                    e.detail,
-                )
             except Exception:
-                logger.exception("Unexpected error during logout token verification")
+                logger.info("Logout with invalid/expired token")
             else:
-                # Only blacklist if token belongs to the current user
                 token_user_id = str(payload.get("user_id"))
-                current_user_id = str(current_user.id)
-                if token_user_id != current_user_id:
-                    logger.warning(
-                        "Logout attempted with token/user mismatch: token_user_id=%s, current_user_id=%s",
-                        token_user_id,
-                        current_user_id,
-                    )
-                else:
+                if token_user_id == str(current_user.id):
+                    # Blacklist access token
                     await jwt_manager.blacklist_token(
                         payload.get("jti"),
-                        current_user_id,
+                        current_user.id,
                         jwt_manager.access_token_ttl,
                     )
 
+                    # Blacklist refresh token
                     refresh_jti = payload.get("refresh_jti")
                     if refresh_jti:
                         await jwt_manager.blacklist_token(
                             refresh_jti,
-                            current_user_id,
+                            current_user.id,
                             jwt_manager.refresh_token_ttl,
                         )
 
-        # Clear refresh cookie regardless of token validity
-        response.delete_cookie(key="refresh_token", path="/auth-api/refresh")
+        response.delete_cookie("refresh_token", path="/auth-api/refresh")
 
         return SuccessResponse(success=True, message="Logged out successfully")
 
     except Exception:
         logger.exception("Logout error")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Logout failed",
-        )
+        raise HTTPException(500, "Logout failed")
 
 
+# --------------------------
+# CURRENT USER
+# --------------------------
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
     user: AuthUser = Depends(get_current_user)
 ):
-    """Get current user information"""
     return user
 
+
+# --------------------------
+# UPDATE USER
+# --------------------------
 @router.put("/me", response_model=UserResponse)
 async def update_current_user_info(
     user_update: UserUpdateRequest,
     current_user: AuthUser = Depends(get_current_user),
     db = Depends(get_db)
 ):
-    """Update current user information"""
     try:
-        # Prepare update values
         display_name = user_update.display_name or current_user.display_name
         role = user_update.role or current_user.role
-        email_verified = user_update.email_verified if user_update.email_verified is not None else current_user.email_verified
-        
-        # Update user in database
-        success = db.execute_update(
+        email_verified = (
+            user_update.email_verified
+            if user_update.email_verified is not None
+            else current_user.email_verified
+        )
+
+        success = await db.execute_async(
             permission_query("UPDATE_USER"),
-            (
-                display_name,
-                role.value if hasattr(role, 'value') else role,
-                email_verified,
-                current_user.id
-            )
+            {
+                "display_name": display_name,
+                "role": role.value if hasattr(role, "value") else role,
+                "email_verified": email_verified,
+                "user_id": current_user.id,
+            }
         )
-        
+
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        # Get updated user
-        updated_user = await db.fetch_one(
+            raise HTTPException(404, "User not found")
+
+        updated_user = await db.fetch_one_async(
             permission_query("GET_USER_BY_ID"),
-            (current_user.id,)
+            {"user_id": current_user.id}
         )
-        
+
         return UserResponse(**updated_user)
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"User update error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="User update failed"
-        )
+        logger.exception(f"User update error: {e}")
+        raise HTTPException(500, "User update failed")
 
+
+# --------------------------
+# DELETE USER
+# --------------------------
 @router.delete("/me")
 async def delete_current_user(
     current_user: UserResponse = Depends(get_current_user),
     db = Depends(get_db)
 ):
-    """Delete current user account"""
     try:
-        success = db.execute_update(
+        auth_manager = get_auth_manager()
+
+        try:
+            auth_manager.delete_user(current_user.uid)
+        except Exception as e:
+            logger.warning(f"Could not delete user from auth provider: {e}")
+
+        success = await db.execute_async(
             permission_query("DELETE_USER"),
-            (current_user.id,)
+            {"user_id": current_user.id}
         )
-        
+
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
+            raise HTTPException(404, "User not found")
+
         return SuccessResponse(success=True, message="User account deleted successfully")
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"User deletion error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="User deletion failed"
-        )
+        logger.exception(f"User deletion error: {e}")
+        raise HTTPException(500, "User deletion failed")
+
 
 # --------------------------
-# Health Check Endpoint
+# HEALTH CHECK
 # --------------------------
-
 @router.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),

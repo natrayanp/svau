@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
-from utils.database.database import get_db, DatabaseManager
+from utils.database.database import get_db
 from utils.database.query_manager import permission_query
 from models.auth_models import AuthUser, UserRole
 from .jwt_utils import jwt_manager
@@ -97,7 +97,7 @@ def is_public_route(path: str) -> bool:
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: DatabaseManager = Depends(get_db)
+    db = Depends(get_db),
 ) -> AuthUser:
 
     path = request.url.path
@@ -131,9 +131,9 @@ async def get_current_user(
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
-        user_data = await db.fetch_one(
+        user_data = await db.fetch_one_async(
             permission_query("GET_USER_BY_ID"),
-            (user_id,)
+            {"user_id": user_id}
         )
 
         if not user_data:

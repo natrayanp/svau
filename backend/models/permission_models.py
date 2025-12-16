@@ -178,3 +178,15 @@ class HealthCheck(BaseModel):
     tables: Dict[str, bool]
     metrics: Dict[str, Any]
     last_updated: str
+
+
+
+# ==================== ORGANIZATION MODELS ====================
+
+class OrganizationInfo(BaseModel):
+    org_id: int
+    name: str
+    slug: str
+    status: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None

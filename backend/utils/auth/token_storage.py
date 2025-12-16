@@ -4,7 +4,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
 import os
-from utils.database.database import DatabaseManager, get_db, DatabaseError
+
+#from utils.database.database_async_core import AsyncDatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class PostgreSQLStorage(TokenStorage):
             ON CONFLICT (jti) DO NOTHING
         """
         try:
-            await self.db.execute_update(query, (jti, user_id, expires_in))
+            await self.db(query, (jti, user_id, expires_in))
             return True
         except Exception:
             logger.exception("Failed to blacklist token")
@@ -132,12 +133,12 @@ class PostgreSQLStorage(TokenStorage):
         """
 
         try:
-            await self.db.execute_update(
+            await self.db.execute_async(
                 token_query, (jti, user_id, device_fp, expires_in, metadata)
             )
 
             max_tokens = int(os.getenv("MAX_REFRESH_TOKENS", "5"))
-            await self.db.execute_update(
+            await self.db.execute_async(
                 user_tokens_query, (user_id, max_tokens, user_id)
             )
 
@@ -153,7 +154,7 @@ class PostgreSQLStorage(TokenStorage):
             WHERE jti = %s AND expires_at > NOW()
         """
         try:
-            result = await self.db.fetch_one(query, (jti,))
+            result = await self.db.fetch_one_async(query, (jti,))
             return result
         except Exception:
             logger.exception("Failed to get refresh token")
@@ -169,15 +170,15 @@ class PostgreSQLStorage(TokenStorage):
                 WHERE user_id = %s AND expires_at > NOW()
                 ON CONFLICT (jti) DO NOTHING
             """
-            await self.db.execute_update(blacklist_query, (user_id,))
+            await self.db.execute_async(blacklist_query, (user_id,))
 
             # Delete user's refresh tokens
             delete_tokens_query = "DELETE FROM refresh_tokens WHERE user_id = %s"
-            await self.db.execute_update(delete_tokens_query, (user_id,))
+            await self.db.execute_async(delete_tokens_query, (user_id,))
 
             # Delete user's devices
             delete_devices_query = "DELETE FROM user_devices WHERE user_id = %s"
-            await self.db.execute_update(delete_devices_query, (user_id,))
+            await self.db.execute_async(delete_devices_query, (user_id,))
 
             return True
         except Exception:
@@ -194,21 +195,21 @@ class PostgreSQLStorage(TokenStorage):
                 WHERE user_id = %s AND device_fp = %s
                 ON CONFLICT (jti) DO NOTHING
             """
-            await self.db.execute_update(blacklist_query, (user_id, device_fp))
+            await self.db.execute_async(blacklist_query, (user_id, device_fp))
 
             # Delete device tokens
             delete_tokens_query = """
                 DELETE FROM refresh_tokens 
                 WHERE user_id = %s AND device_fp = %s
             """
-            await self.db.execute_update(delete_tokens_query, (user_id, device_fp))
+            await self.db.execute_async(delete_tokens_query, (user_id, device_fp))
 
             # Delete device registration
             delete_device_query = """
                 DELETE FROM user_devices 
                 WHERE user_id = %s AND device_fp = %s
             """
-            await self.db.execute_update(delete_device_query, (user_id, device_fp))
+            await self.db.execute_async(delete_device_query, (user_id, device_fp))
 
             return True
         except Exception:
@@ -223,7 +224,7 @@ class PostgreSQLStorage(TokenStorage):
             ORDER BY last_seen DESC
         """
         try:
-            results = await self.db.fetch_all(query, (user_id,))
+            results = await self.db.fetch_all_async(query, (user_id,))
             return results or []
         except Exception:
             logger.exception("Failed to get user devices")
@@ -246,7 +247,7 @@ class PostgreSQLStorage(TokenStorage):
                 last_seen = NOW()
         """
         try:
-            await self.db.execute_update(query, (user_id, device_fp, expires_in, metadata))
+            await self.db.execute_async(query, (user_id, device_fp, expires_in, metadata))
             return True
         except Exception:
             logger.exception("Failed to track device")
@@ -256,13 +257,13 @@ class PostgreSQLStorage(TokenStorage):
         """Cleanup expired tokens and devices; return True on success."""
         try:
             blacklist_query = "DELETE FROM token_blacklist WHERE expires_at <= NOW()"
-            await self.db.execute_update(blacklist_query)
+            await self.db.execute_async(blacklist_query)
 
             token_query = "DELETE FROM refresh_tokens WHERE expires_at <= NOW()"
-            await self.db.execute_update(token_query)
+            await self.db.execute_async(token_query)
 
             device_query = "DELETE FROM user_devices WHERE expires_at <= NOW()"
-            await self.db.execute_update(device_query)
+            await self.db.execute_async(device_query)
 
             return True
         except Exception:

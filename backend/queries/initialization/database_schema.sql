@@ -10,8 +10,10 @@ CREATE TABLE organizations (
     name VARCHAR(200) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,    
     status VARCHAR(20) DEFAULT 'IA',
     CHECK (status IN ('AC', 'IA', 'SU', 'EX', 'CA', 'DE'))
 );
@@ -197,40 +199,51 @@ CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
 CREATE INDEX idx_permission_structures_key ON permission_structures(key);
 
 
--- TOKEN AND DEVICE TABLES
+-- TOKEN AND DEVICE TABLES (PostgreSQL-compatible)
 
--- Required tables for PostgreSQL storage
-CREATE TABLE token_blacklist (
+CREATE TABLE IF NOT EXISTS token_blacklist (
     jti VARCHAR(255) PRIMARY KEY,
     user_id UUID NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
-    blacklisted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    INDEX idx_user_id (user_id),
-    INDEX idx_expires (expires_at)
+    blacklisted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     jti VARCHAR(255) PRIMARY KEY,
     user_id UUID NOT NULL,
     device_fp VARCHAR(64) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     metadata JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    INDEX idx_user_id (user_id),
-    INDEX idx_device_fp (device_fp),
-    INDEX idx_expires (expires_at)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE user_devices (
+CREATE TABLE IF NOT EXISTS user_devices (
     user_id UUID NOT NULL,
     device_fp VARCHAR(64) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     metadata JSONB,
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (user_id, device_fp),
-    INDEX idx_expires (expires_at)
+    PRIMARY KEY (user_id, device_fp)
 );
+
+-- Indexes (idempotent)
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_user_id ON token_blacklist (user_id);
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires ON token_blacklist (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_device_fp ON refresh_tokens (device_fp);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_user_devices_expires ON user_devices (expires_at);
+
+-- If you want non-blocking index creation in production, run these instead (outside transactions):
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_token_blacklist_user_id ON token_blacklist (user_id);
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_token_blacklist_expires ON token_blacklist (expires_at);
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_refresh_tokens_device_fp ON refresh_tokens (device_fp);
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens (expires_at);
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_devices_expires ON user_devices (expires_at);
 
 -- Create cleanup function
 CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
@@ -241,3 +254,12 @@ BEGIN
     DELETE FROM user_devices WHERE expires_at <= NOW();
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE TABLE system_entities (
+    entity_name VARCHAR(50) PRIMARY KEY,
+    entity_id INTEGER NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

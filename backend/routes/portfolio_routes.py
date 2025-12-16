@@ -50,7 +50,7 @@ async def get_user_permissions(
     db = Depends(get_db)
 ):
     """Get user's permission IDs"""
-    permissions = await db.fetch_one(
+    permissions = await db.fetch_one_async(
         auth_query("GET_USER_PERMISSION_IDS"),
         (user_id,),
         fetch=True
@@ -200,7 +200,7 @@ async def get_user_permissions_with_details(
     db = Depends(get_db)
 ):
     """Get user permissions with detailed information"""
-    permissions = await db.fetch_one(
+    permissions = await db.fetch_one_async(
         auth_query("GET_USER_PERMISSIONS_WITH_DETAILS"),
         (user_id,),
         fetch=True

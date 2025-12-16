@@ -231,7 +231,7 @@ export const authService = {
     }
   },
 
-  async register(email: string, password: string, displayName?: string): Promise<any> {
+  async register(email: string, password: string, displayName?: string, organizationData?: any): Promise<any> {
     try {
       authLoading.set(true);
       console.log('📝 Attempting registration for:', email);
@@ -244,13 +244,22 @@ export const authService = {
       const firebaseToken = await firebaseUser.getIdToken();
       
       // 3. Prepare backend data in snake_case
-      const backendUserData: UserCreateBackend = {
+      const backendUserData: any = {
         uid: firebaseUser.uid,
         email: email,
         display_name: displayName?.trim() || '',
         role: 'user',
         email_verified: false
       };
+
+      // include org_id when joining an existing organization
+      if (organizationData && organizationData.type === 'join' && organizationData.id) {
+        backendUserData.org_id = organizationData.id;
+      }
+      // include org_name when creating a new organization
+      if (organizationData && organizationData.type === 'create' && organizationData.name) {
+        backendUserData.org_name = organizationData.name;
+      }
       
       // 4. Register in backend/mock
       console.log('🔄 Registering user in  ..');
@@ -328,6 +337,199 @@ export const authService = {
       throw new AuthError(errorCode, this.getFriendlyErrorMessage({ code: errorCode, message: errorMessage }));
     } finally {
       authLoading.set(false);
+    }
+  },
+
+
+  // ========== GOOGLE SIGN-IN ==========
+  async loginWithGoogle(firebaseToken: string, organizationId?: string): Promise<any> {
+    try {
+      authLoading.set(true);
+      console.log('🔐 Attempting Google login with organization:', organizationId);
+
+      // Send Google token to backend with organization ID
+      const jwtTokens = await authApi.loginWithFirebase(firebaseToken);
+      
+      // Store JWT in all places
+      jwtToken.set(jwtTokens.access_token);
+      authApi.setAuthToken(jwtTokens.access_token);
+      localStorage.setItem('jwt_token', jwtTokens.access_token);
+      console.log('✅ JWT token received and stored');
+      
+      // Parse JWT to get immediate user data
+      const jwtPayload = parseJwt(jwtTokens.access_token);
+      if (jwtPayload) {
+        const immediateUserData = {
+          id: jwtPayload.user_id,
+          uid: jwtPayload.uid || 'google_user',
+          email: jwtPayload.email || '',
+          displayName: jwtPayload.display_name || '',
+          role: jwtPayload.role || 'user',
+          emailVerified: jwtPayload.email_verified || true,
+          createdAt: jwtPayload.created_at || new Date().toISOString()
+        };
+        
+        authUser.set(immediateUserData);
+        isAuthenticated.set(true);
+        console.log('📋 Immediate user data from JWT:', immediateUserData);
+      }
+      
+      // Fetch complete user data
+      console.log('📋 Fetching complete user data from backend...');
+      const backendUserData = await authApi.getCurrentUser();
+      const frontendUserData = toCamelCase(backendUserData);
+      
+      // Update stores with complete data
+      authUser.set(frontendUserData);
+      isAuthenticated.set(true);
+      
+      console.log('🎉 Google login successful for:', frontendUserData.email);
+      return frontendUserData;
+
+    } catch (error: any) {
+      console.error('❌ Google login failed:', error.message || error);
+      
+      // Handle specific backend errors
+      if (error.message?.includes('User not registered') || 
+          error.message?.includes('404') ||
+          error.message?.includes('not found')) {
+        throw new AuthError('auth/user-not-registered', 'User not registered. Please complete registration.');
+      }
+      
+      throw new AuthError('auth/google-login-failed', this.getFriendlyErrorMessage(error));
+    } finally {
+      authLoading.set(false);
+    }
+  },
+
+    decodeFirebaseToken(token: string): any {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const decoded = JSON.parse(jsonPayload);
+      console.log('🔍 Raw decoded token:', decoded);
+      
+      // Extract Firebase-specific fields
+      return {
+        user_id: decoded.user_id,
+        sub: decoded.sub,
+        uid: decoded.uid || decoded.user_id || decoded.sub,
+        email: decoded.email || decoded['firebase']?.identities?.email?.[0],
+        email_verified: decoded.email_verified || false,
+        name: decoded.name || '',
+        picture: decoded.picture || '',
+        firebase: decoded.firebase || {}
+      };
+    } catch (error) {
+      console.warn('⚠️ Could not decode Firebase token:', error);
+      return {};
+    }
+  },
+
+  // ========== GOOGLE REGISTRATION ==========
+  async registerWithGoogle(firebaseToken: string, displayName: string, organizationData: any): Promise<any> {
+    try {
+      authLoading.set(true);
+      console.log('📝 Attempting Google registration...');
+
+      //const decodedToken = this.decodeFirebaseToken(firebaseToken);
+      //console.log('🔍 Decoded Firebase token:', decodedToken);
+
+      // Prepare backend data
+      const backendUserData: UserCreateBackend = {
+            firebase_token:firebaseToken,
+            display_name: displayName,
+            organization_data:organizationData
+      };
+      console.log('🔍 Decoded Firebase token:', backendUserData);
+      // Send registration request with Google token
+      const response = await authApi.registerUser(backendUserData);
+      console.log('✅ Google registration successful in backend');
+      // Auto-login after registration
+       console.log('🔄 Auto-login after Google registration...');
+      const jwtTokens = await authApi.loginWithFirebase(firebaseToken);
+      
+      // Store JWT in all places
+      jwtToken.set(jwtTokens.access_token);
+      authApi.setAuthToken(jwtTokens.access_token);
+      localStorage.setItem('jwt_token', jwtTokens.access_token);
+      
+      // Parse JWT for immediate data
+      const jwtPayload = parseJwt(jwtTokens.access_token);
+      if (jwtPayload) {
+        const immediateUserData = {
+          id: jwtPayload.user_id,
+          uid: jwtPayload.uid || 'google_user',
+          email: jwtPayload.email || '',
+          displayName: jwtPayload.display_name || displayName,
+          role: jwtPayload.role || 'user',
+          emailVerified: jwtPayload.email_verified || true,
+          createdAt: jwtPayload.created_at || new Date().toISOString()
+        };
+        
+        authUser.set(immediateUserData);
+        isAuthenticated.set(true);
+      }
+      
+      // Fetch complete user data
+      const backendUser = await authApi.getCurrentUser();
+      const frontendUserData = toCamelCase(backendUser);
+      
+      // Update stores with complete data
+      authUser.set(frontendUserData);
+      isAuthenticated.set(true);
+      
+      console.log('🎉 Google registration successful for:', frontendUserData.email);
+      return frontendUserData;
+
+    } catch (error: any) {
+      console.error('❌ Google registration failed:', error.message || error);
+      throw new AuthError('auth/google-registration-failed', this.getFriendlyErrorMessage(error));
+    } finally {
+      authLoading.set(false);
+    }
+  },
+
+  // ========== GOOGLE SIGN-IN FLOW (for frontend) ==========
+  async handleGoogleSignInFlow(): Promise<{token: string, user: any}> {
+    try {
+      // Import Firebase dynamically to avoid SSR issues
+      const { auth, googleProvider, signInWithPopup } = await import('./firebase');
+      
+      // Sign in with Google via Firebase
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Get Firebase ID token
+      const token = await user.getIdToken();
+      
+      return {
+        token,
+        user: {
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Google sign-in flow failed:', error);
+      
+      // Handle specific Google errors
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new AuthError('auth/google-cancelled', 'Sign-in was cancelled');
+      } else if (error.code === 'auth/popup-blocked') {
+        throw new AuthError('auth/popup-blocked', 'Popup blocked. Please allow popups for this site.');
+      }
+      
+      throw new AuthError('auth/google-signin-failed', 'Google sign-in failed. Please try again.');
     }
   },
 
@@ -508,6 +710,11 @@ export const authService = {
       'auth/email-exists': 'Email already registered. Please use a different email.',
       'auth/no-token': 'Session expired. Please login again.',
       'auth/token-expired': 'Session expired. Please login again.',
+      'auth/google-login-failed': 'Google sign-in failed. Please try again.',
+      'auth/google-registration-failed': 'Google registration failed. Please try again.',
+      'auth/google-cancelled': 'Google sign-in was cancelled.',
+      'auth/popup-blocked': 'Popup blocked. Please allow popups for this site.',
+      'auth/user-not-registered': 'User not registered. Please complete registration first.',
       'backend/login-failed': 'Failed to authenticate with server.',
       'backend/registration-failed': 'Failed to register with server.',
       'fetch-profile-failed': 'Failed to load user profile.',

@@ -6,7 +6,7 @@ import type {
   UserCreateBackend, 
   UserResponseBackend,
   SuccessResponseBackend 
-} from './types';
+} from './authtypes';
 
 // Helper functions for snake_case/camelCase conversion
 const toSnakeCase = (obj: any): any => {

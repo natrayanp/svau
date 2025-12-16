@@ -1,9 +1,7 @@
 import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-
-from dependencies.system_entities import SystemEntities
-from utils.database.database_async_core import AsyncDatabaseManager
+from utils.database.database import DatabaseManager
 from utils.database.query_manager import permission_query
 from utils.appwide.errors import AppException
 
@@ -11,42 +9,41 @@ logger = logging.getLogger(__name__)
 
 
 class RoleService:
-    """Service layer for role-related operations (async)."""
+    """Service layer for role-related operations."""
 
-    def __init__(self, db: AsyncDatabaseManager, system: SystemEntities):
+    def __init__(self, db: DatabaseManager):
         self.db = db
-        self.system = system
 
     # ======================================================
     # COMMON METHODS
     # ======================================================
 
-    async def get_user_organization(self, user_id: int) -> Tuple[int, Dict[str, Any]]:
-        result = await self.db.fetch_one_async(
+    def get_user_organization(self, user_id: int) -> Tuple[int, Dict[str, Any]]:
+        result = self.db.fetch_one(
             permission_query("GET_USER_ORGANIZATION"),
-            {"user_id": user_id},
+            {"user_id": user_id}
         )
 
         if not result:
             raise AppException(
                 message="User organization not found",
                 code="ORG_NOT_FOUND",
-                status_code=404,
+                status_code=404
             )
 
         return result["org_id"], result
 
-    async def verify_role_access(self, role_id: int, org_id: int) -> bool:
-        check = await self.db.fetch_one_async(
+    def verify_role_access(self, role_id: int, org_id: int) -> bool:
+        check = self.db.fetch_one(
             permission_query("VERIFY_ROLE_ORGANIZATION"),
-            {"role_id": role_id, "org_id": org_id},
+            {"role_id": role_id, "org_id": org_id}
         )
         return bool(check)
 
-    async def check_role_name_exists(self, org_id: int, display_name: str) -> bool:
-        existing = await self.db.fetch_one_async(
+    def check_role_name_exists(self, org_id: int, display_name: str) -> bool:
+        existing = self.db.fetch_one(
             permission_query("CHECK_ROLE_NAME_EXISTS"),
-            {"org_id": org_id, "display_name": display_name},
+            {"org_id": org_id, "display_name": display_name}
         )
         return bool(existing)
 
@@ -54,7 +51,7 @@ class RoleService:
     # ROLE CRUD HELPERS
     # ======================================================
 
-    async def _update_role_metadata(
+    def _update_role_metadata(
         self,
         role_id: int,
         display_name: Optional[str],
@@ -62,7 +59,7 @@ class RoleService:
         updated_by: int,
     ):
         fields = []
-        params: Dict[str, Any] = {"role_id": role_id, "updated_by": updated_by}
+        params = {"role_id": role_id, "updated_by": updated_by}
 
         if display_name is not None:
             fields.append("display_name = %(display_name)s")
@@ -79,23 +76,20 @@ class RoleService:
             update_fields=", ".join(fields)
         )
 
-        await self.db.execute_async(query, params)
+        self.db.execute(query, params)
 
-    async def update_role_permissions(self, role_id: int, permissions: List[Dict[str, Any]]):
+    def update_role_permissions(self, role_id: int, permissions: List[Dict[str, Any]]):
         if not permissions:
-            print("update_role_permissions nothing to do")
             return
 
-        structure_ids: List[int] = []
-        print("update_role_permissions")
-        print(permissions)
+        structure_ids = []
+
         for perm in permissions:
-            print(perm)
             structure_id = int(perm.get("permissstruct_id"))
             granted = json.dumps(perm.get("granted_action_key", []))
             structure_ids.append(structure_id)
 
-            await self.db.execute_async(
+            self.db.execute(
                 permission_query("UPSERT_ROLE_PERMISSION"),
                 {
                     "role_id": role_id,
@@ -104,7 +98,7 @@ class RoleService:
                 },
             )
 
-        await self.db.execute_async(
+        self.db.execute(
             permission_query("REMOVE_OLD_PERMISSIONS"),
             {"role_id": role_id, "structure_ids": tuple(structure_ids)},
         )
@@ -113,34 +107,32 @@ class RoleService:
     # READ
     # ======================================================
 
-    async def get_role_for_organisation(self, user_id: int, offset: int, limit: int):
-        result = await self.db.fetch_one_async(
+    def get_role_for_organisation(self, user_id: int, offset: int, limit: int):
+        result = self.db.fetch_one(
             permission_query("ORGANIZATION_ROLES_QUERY"),
-            {"current_user_id": user_id, "offset": offset, "limit": limit},
+            {"current_user_id": user_id, "offset": offset, "limit": limit}
         )
 
         if not result:
             raise AppException(
                 message="No roles found for your organization",
                 code="ORG_ROLES_NOT_FOUND",
-                status_code=404,
+                status_code=404
             )
 
         return {
             "roles_data": result["roles_data"],
-            "operation_metadata": {"performed_by": user_id},
+            "operation_metadata": {"performed_by": user_id}
         }
 
     # ======================================================
     # BULK CREATE
     # ======================================================
 
-    async def bulk_create_roles(
-        self, org_id: int, roles_data: List[Dict[str, Any]], created_by: int
-    ):
-        created: List[int] = []
+    def bulk_create_roles(self, org_id: int, roles_data: List[Dict[str, Any]], created_by: int):
+        created = []
 
-        async with self.db.transaction_async():
+        with self.db.transaction():
             for i, role in enumerate(roles_data):
                 display_name = role.get("display_name")
 
@@ -148,11 +140,11 @@ class RoleService:
                     raise AppException(
                         message=f"Missing display_name at index {i}",
                         code="MISSING_DISPLAY_NAME",
-                        status_code=400,
+                        status_code=400
                     )
 
                 try:
-                    new_role = await self.db.execute_returning_async(
+                    new_role = self.db.execute_returning(
                         permission_query("CREATE_NEW_ROLE"),
                         {
                             "org_id": org_id,
@@ -166,14 +158,14 @@ class RoleService:
                     created.append(role_id)
 
                     if role.get("permissions"):
-                        await self.update_role_permissions(role_id, role["permissions"])
+                        self.update_role_permissions(role_id, role["permissions"])
 
                 except Exception as e:
                     logger.error(f"Unexpected error creating role at index {i}: {e}")
                     raise AppException(
                         message="Failed to create role",
                         code="ROLE_CREATE_ERROR",
-                        status_code=500,
+                        status_code=500
                     )
 
         return {
@@ -182,21 +174,17 @@ class RoleService:
             "operation": "create",
             "count": len(created),
             "ids": created,
-            "message": f"Successfully created {len(created)} roles",
+            "message": f"Successfully created {len(created)} roles"
         }
+
     # ======================================================
-    # BULK UPDATE (ASYNC)
+    # BULK UPDATE
     # ======================================================
 
-    async def bulk_update_roles(
-        self,
-        org_id: int,
-        roles_data: List[Dict[str, Any]],
-        updated_by: int
-    ):
-        updated_ids: List[int] = []
+    def bulk_update_roles(self, org_id: int, roles_data: List[Dict[str, Any]], updated_by: int):
+        updated_ids = []
 
-        async with self.db.transaction_async():
+        with self.db.transaction():
             for i, role in enumerate(roles_data):
                 role_id = role.get("role_id")
 
@@ -209,7 +197,7 @@ class RoleService:
 
                 role_id = int(role_id)
 
-                if not await self.verify_role_access(role_id, org_id):
+                if not self.verify_role_access(role_id, org_id):
                     raise AppException(
                         message=f"Role {role_id} not found or access denied",
                         code="ROLE_ACCESS_DENIED",
@@ -217,18 +205,16 @@ class RoleService:
                     )
 
                 try:
-                    # Update metadata
                     if "display_name" in role or "description" in role:
-                        await self._update_role_metadata(
+                        self._update_role_metadata(
                             role_id,
                             role.get("display_name"),
                             role.get("description"),
                             updated_by,
                         )
 
-                    # Update permissions
                     if role.get("permissions") is not None:
-                        await self.update_role_permissions(role_id, role["permissions"])
+                        self.update_role_permissions(role_id, role["permissions"])
 
                     updated_ids.append(role_id)
 
@@ -250,31 +236,23 @@ class RoleService:
         }
 
     # ======================================================
-    # BULK DELETE (ASYNC)
+    # BULK DELETE
     # ======================================================
 
-    async def bulk_delete_roles(
-        self,
-        org_id: int,
-        role_ids: List[int],
-        deleted_by: int,
-        hard_delete: bool = False
-    ):
-        deleted_ids: List[int] = []
+    def bulk_delete_roles(self, org_id: int, role_ids: List[int], deleted_by: int, hard_delete: bool = False):
+        deleted_ids = []
 
-        async with self.db.transaction_async():
+        with self.db.transaction():
             for role_id in role_ids:
 
-                # Access check
-                if not await self.verify_role_access(role_id, org_id):
+                if not self.verify_role_access(role_id, org_id):
                     raise AppException(
                         message=f"Role {role_id} not found or access denied",
                         code="ROLE_ACCESS_DENIED",
                         status_code=404
                     )
 
-                # Check if system role
-                role_check = await self.db.fetch_one_async(
+                role_check = self.db.fetch_one(
                     "SELECT is_system_role FROM roles WHERE role_id=%(role_id)s AND org_id=%(org_id)s",
                     {"role_id": role_id, "org_id": org_id}
                 )
@@ -286,26 +264,22 @@ class RoleService:
                         status_code=409
                     )
 
-                # Check if role has assigned users
-                user_count = await self.db.fetch_one_async(
+                user_count = self.db.fetch_one(
                     "SELECT COUNT(*) AS count FROM user_roles WHERE role_id=%(role_id)s",
                     {"role_id": role_id}
                 )
 
                 if user_count and user_count["count"] > 0:
                     raise AppException(
-                        message=(
-                            f"Role {role_id} has {user_count['count']} assigned users. "
-                            f"Please reassign users before deleting."
-                        ),
+                        message=f"Role {role_id} has {user_count['count']} assigned users. "
+                                f"Please reassign users before deleting.",
                         code="ROLE_HAS_USERS",
                         status_code=409
                     )
 
                 try:
-                    # Delete role
                     query = permission_query("HARD_DELETE_ROLE" if hard_delete else "SOFT_DELETE_ROLE")
-                    result = await self.db.execute_returning_async(
+                    result = self.db.execute_returning(
                         query,
                         {
                             "role_id": role_id,
@@ -342,51 +316,3 @@ class RoleService:
             "ids": deleted_ids,
             "message": f"Successfully deleted {len(deleted_ids)} roles"
         }
-
-    # ======================================================
-    # CLONE SYSTEM ROLES
-    # ======================================================
-
-    async def clone_system_roles_for_org_async(self, target_org_id: int, created_by: int):
-        """
-        Clone roles and permissions from the system org into target_org_id.
-        Reuses bulk_create_roles and update_role_permissions for consistency.
-        """
-        try:
-            # 1️⃣ Fetch system org ID
-            system_org_id = getattr(self.system, "system_org", None)
-            if not system_org_id:
-                rows = await self.db.fetch_all_async(permission_query("GET_SYSTEM_ENTITIES"))
-                mapping = {r["entity_name"]: r["entity_id"] for r in rows}
-                system_org_id = mapping.get("system_org")
-
-            if not system_org_id:
-                raise RuntimeError("system_org not found in system_entities")
-
-            # 2️⃣ Fetch roles with permissions
-            system_roles = await self.db.fetch_all_async(
-                permission_query("GET_SYSTEM_ROLES_WITH_PERMISSIONS"),
-                {"org_id": system_org_id}
-            )
-
-            # 3️⃣ Prepare data for bulk_create_roles
-            roles_data = []
-            for r in system_roles:
-                roles_data.append({
-                    "display_name": r["display_name"],
-                    "description": r.get("description", ""),
-                    "permissions": r.get("permissions", []),
-                })
-
-            # 4️⃣ Bulk create roles in target org
-            await self.bulk_create_roles(target_org_id, roles_data, created_by)
-
-            logger.info("Cloned %d system roles into org %s", len(roles_data), target_org_id)
-
-        except Exception as e:
-            logger.exception("Failed to clone system roles for org %s: %s", target_org_id, e)
-            raise AppException(
-                message="Failed to bootstrap system roles",
-                code="ORG_ROLE_BOOTSTRAP_FAILED",
-                status_code=500
-            )
